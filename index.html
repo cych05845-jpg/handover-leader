@@ -113,11 +113,32 @@
   .section-h.closed::before { background: var(--text3); }
 
   /* 案件卡 */
-  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; transition: border-color 0.15s, box-shadow 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06); position: relative; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06); position: relative; }
   .card:hover { border-color: var(--border2); box-shadow: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06); }
   .card.pending { border-color: var(--amber-bd); background: linear-gradient(180deg, #fffaee 0%, var(--bg2) 100%); }
   .card.closed { background: var(--bg3); opacity: 0.75; }
   .card.tier2 { border-left: 4px solid var(--red-text); }
+  /* 展開狀態 — 淡藍底 + 主色左邊框 + 強化陰影,讓展開的卡片視覺上「浮起」 */
+  .card.expanded {
+    background: linear-gradient(180deg, #f0f8fc 0%, #f7fbfd 100%);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(0,166,160,0.12), 0 2px 6px rgba(0,0,0,0.06);
+  }
+  .card.expanded:hover {
+    box-shadow: 0 0 0 1px var(--accent), 0 10px 28px rgba(0,166,160,0.18), 0 3px 8px rgba(0,0,0,0.08);
+  }
+  /* 展開的待批准案件:保持黃色但加強邊框 */
+  .card.expanded.pending {
+    background: linear-gradient(180deg, #fff8e7 0%, #fffaee 100%);
+    border-color: #d4940f;
+    box-shadow: 0 0 0 1px #d4940f, 0 8px 24px rgba(212,148,15,0.18);
+  }
+  /* 展開的宣導案件:強化棕色 */
+  .card.expanded.announce {
+    background: linear-gradient(180deg, #fff8e1 0%, #fffceb 100%);
+    border-left-width: 4px;
+    box-shadow: 0 0 0 1px #b8860b, 0 8px 24px rgba(184,134,11,0.2);
+  }
   /* 案件之間用斷裂線分隔 */
   .card + .card { position: relative; }
   .card + .card::before { content: ''; position: absolute; top: -10px; left: 24px; right: 24px; border-top: 1px dashed var(--border); }
@@ -170,6 +191,11 @@
   .hd-section.hd-announce { background: linear-gradient(180deg, #fff4dc 0%, #ffe8a8 100%); border-color: #b8860b; border-width: 2px; }
   .hd-announce .hd-h { color: #5d4407; }
   .hd-status { color: var(--text2); font-size: 24px; font-weight: 500; background: rgba(255,255,255,0.6); padding: 2px 10px; border-radius: 6px; }
+
+  /* 返回交班摘要的浮動按鈕 */
+  .back-to-handover { position: fixed; top: 16px; right: 24px; z-index: 90; background: var(--accent); color: #fff; border: none; padding: 10px 18px; border-radius: 999px; font-size: 21px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 16px rgba(0,166,160,0.35); transition: all 0.15s; animation: hd-pop 0.3s ease-out; }
+  .back-to-handover:hover { background: var(--accent-d); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,166,160,0.5); }
+  @keyframes hd-pop { 0% { transform: translateY(-12px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
 
   /* 病人離院特殊樣式 */
   .card.runaway { border-left: 4px solid #b8860b; }
@@ -2292,7 +2318,7 @@ function genHandover() {
   const pending = state.cases.filter(x => x.state === 'pending_approval');
   if (pending.length) {
     txt += `🔶 待批准封緘 (${pending.length} 件)\n`;
-    pending.forEach(c => txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title} — ${c.waitingFor||"處理中"}\n`);
+    pending.forEach(c => txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title}${c.waitingFor && c.waitingFor !== "處理中" ? " — " + c.waitingFor : ""}\n`);
     txt += '\n';
   }
 
@@ -2308,7 +2334,7 @@ function genHandover() {
       if (c.flags && c.flags.lawsuitRisk) tags.push('醫糾');
       if (c.flags && c.flags.supervisorInvolved) tags.push('長官');
       if (c.tier === 2 || c.tier === '2') tags.push('Tier2');
-      txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title}${tags.length?` 〔${tags.join(',')}〕`:''} — ${c.waitingFor||"處理中"}\n`;
+      txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title}${tags.length?` 〔${tags.join(',')}〕`:''}${c.waitingFor && c.waitingFor !== "處理中" ? " — " + c.waitingFor : ""}\n`;
       const lastP = c.progress && c.progress[c.progress.length-1];
       if (lastP) txt += `    最新進度:${lastP.text}\n`;
     });
@@ -2327,7 +2353,7 @@ function genHandover() {
     );
     if (!open.length) return;
     txt += `▸ ${cat.label} (${open.length} 件)\n`;
-    open.forEach(c => txt += `  • ${c.title} — ${c.waitingFor||"處理中"}\n`);
+    open.forEach(c => txt += `  • ${c.title}${c.waitingFor && c.waitingFor !== "處理中" ? " — " + c.waitingFor : ""}\n`);
     txt += '\n';
   });
 
@@ -2345,7 +2371,7 @@ function genHandover() {
         <div class="hd-row hd-clickable" onclick="jumpToCase('${c.cat}','${c.id}')">
           <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
           <span class="hd-title">${escapeHtml(c.title)}</span>
-          <span class="hd-status">${escapeHtml(c.waitingFor || "處理中")}</span>
+          ${c.waitingFor && c.waitingFor !== "處理中" ? `<span class="hd-status">${escapeHtml(c.waitingFor)}</span>` : ""}
         </div>`).join('')}
     </div>`;
   }
@@ -2357,7 +2383,7 @@ function genHandover() {
         <div class="hd-row hd-clickable" onclick="jumpToCase('${c.cat}','${c.id}')">
           <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
           <span class="hd-title">${escapeHtml(c.title)}</span>
-          <span class="hd-status">${escapeHtml(c.waitingFor || "處理中")}</span>
+          ${c.waitingFor && c.waitingFor !== "處理中" ? `<span class="hd-status">${escapeHtml(c.waitingFor)}</span>` : ""}
         </div>`).join('')}
     </div>`;
   }
@@ -2376,7 +2402,7 @@ function genHandover() {
             <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
             <span class="hd-title">${escapeHtml(c.title)}</span>
             ${tags.map(t => `<span class="hd-tag">${t}</span>`).join('')}
-            <span class="hd-status">${escapeHtml(c.waitingFor || "處理中")}</span>
+            ${c.waitingFor && c.waitingFor !== "處理中" ? `<span class="hd-status">${escapeHtml(c.waitingFor)}</span>` : ""}
           </div>
           ${lastP ? `<div class="hd-progress">▸ ${escapeHtml(lastP.text)}</div>` : ''}
         </div>`;
@@ -2402,7 +2428,7 @@ function genHandover() {
       <div class="hd-cat-h">${cat.label} <span class="hd-count-sm">${open.length} 件</span></div>
       ${open.map(c => `<div class="hd-row hd-clickable" onclick="jumpToCase('${c.cat}','${c.id}')">
         <span class="hd-title">${escapeHtml(c.title)}</span>
-        <span class="hd-status">${escapeHtml(c.waitingFor || "處理中")}</span>
+        ${c.waitingFor && c.waitingFor !== "處理中" ? `<span class="hd-status">${escapeHtml(c.waitingFor)}</span>` : ""}
       </div>`).join('')}
     </div>`;
   });
@@ -2468,6 +2494,29 @@ function jumpToCase(catId, caseId) {
       setTimeout(() => target.classList.remove('card-highlight'), 2400);
     }
   }, 200);
+
+  // 顯示「返回摘要」浮動按鈕
+  showBackToHandoverButton();
+}
+
+function showBackToHandoverButton() {
+  let btn = document.getElementById('back-to-handover');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'back-to-handover';
+    btn.className = 'back-to-handover';
+    btn.innerHTML = '↩ 返回交班摘要';
+    btn.onclick = () => {
+      btn.remove();
+      genHandover();
+    };
+    document.body.appendChild(btn);
+  }
+  // 5 分鐘後自動消失(避免使用者忘記它)
+  clearTimeout(btn._timer);
+  btn._timer = setTimeout(() => {
+    if (btn.parentNode) btn.remove();
+  }, 5 * 60 * 1000);
 }
 
 // 大型 modal(寬一點,給交班摘要用)

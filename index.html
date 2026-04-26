@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>急診 Leader 交班系統</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg2: #fff;
+    --bg3: #eef0f3;
+    --text: #1a1a1a;
+    --text2: #666;
+    --text3: #999;
+    --border: #e0e2e6;
+    --red-bg: #fee;
+    --red-text: #c00;
+    --amber-bg: #fff3e0;
+    --amber-text: #b56a00;
+    --blue-bg: #e6f0fb;
+    --blue-text: #0a5cb8;
+    --green-bg: #e6f7ec;
+    --green-text: #0a7a3b;
+    --gray-bg: #eef0f3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif; color: var(--text); background: var(--bg); padding: 12px; max-width: 900px; margin: 0 auto; line-height: 1.5; }
+  button, input, select, textarea { font-family: inherit; font-size: 14px; }
+  button { padding: 6px 12px; background: #fff; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+  button:hover { background: var(--bg3); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary { background: var(--text); color: #fff; border-color: var(--text); }
+  button.primary:hover { opacity: 0.85; background: var(--text); }
+  button.danger { color: var(--red-text); border-color: #f5b5b5; }
+  input, select, textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--text); }
+
+  /* Login */
+  .login-wrap { min-height: 70vh; display: flex; align-items: center; justify-content: center; }
+  .login-box { background: #fff; padding: 28px; border-radius: 12px; border: 1px solid var(--border); width: 320px; max-width: 100%; }
+  .login-box h1 { font-size: 18px; margin-bottom: 18px; text-align: center; }
+  .login-box label { display: block; font-size: 12px; color: var(--text2); margin: 12px 0 4px; }
+  .login-box .err { color: var(--red-text); font-size: 12px; margin-top: 8px; }
+  .login-box .submit { width: 100%; margin-top: 16px; padding: 9px; }
+
+  /* App */
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #fff; border-radius: 8px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; border: 1px solid var(--border); }
+  .header .who { font-size: 13px; }
+  .header .who strong { font-weight: 600; }
+  .header .time { font-size: 12px; color: var(--text2); }
+  .header .logout { font-size: 12px; padding: 3px 8px; }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(95px, 1fr)); gap: 6px; margin-bottom: 12px; }
+  .stat { background: #fff; border-radius: 8px; padding: 8px 10px; cursor: pointer; border: 1px solid var(--border); }
+  .stat:hover { background: var(--bg3); }
+  .stat.urgent { background: var(--red-bg); border-color: #f5b5b5; }
+  .stat.urgent .l, .stat.urgent .n { color: var(--red-text); }
+  .stat .l { font-size: 11px; color: var(--text2); }
+  .stat .n { font-size: 18px; font-weight: 600; line-height: 1.2; margin-top: 2px; }
+  .stat .n .total { font-size: 12px; color: var(--text3); font-weight: 400; }
+
+  .pending-bar { background: var(--amber-bg); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; color: var(--amber-text); display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; border: 1px solid #f0d49a; }
+
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; overflow-x: auto; }
+  .tab { background: transparent; border: none; padding: 8px 12px; font-size: 13px; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+  .tab.active { color: var(--text); border-bottom-color: var(--text); font-weight: 600; }
+  .tab .badge-n { display: inline-block; background: var(--red-bg); color: var(--red-text); font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-left: 4px; font-weight: 600; }
+
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  .section-h { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 8px; }
+  .section-h.pending { color: var(--amber-text); }
+  .section-h.closed { margin-top: 1.25rem; color: var(--text3); }
+
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
+  .card.pending { border-color: #f0d49a; background: var(--amber-bg); }
+  .card.closed { background: var(--bg3); opacity: 0.7; }
+  .card.tier2 { border-color: #f5b5b5; }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .card-title { font-weight: 600; font-size: 14px; line-height: 1.4; }
+  .card-meta { font-size: 12px; color: var(--text2); margin-top: 3px; line-height: 1.5; }
+  .card-body { font-size: 13px; margin-top: 8px; line-height: 1.55; white-space: pre-wrap; }
+
+  .badges { display: flex; gap: 4px; flex-direction: column; align-items: flex-end; }
+  .badges-row { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 500; white-space: nowrap; }
+  .b-red { background: var(--red-bg); color: var(--red-text); }
+  .b-amber { background: var(--amber-bg); color: var(--amber-text); }
+  .b-blue { background: var(--blue-bg); color: var(--blue-text); }
+  .b-green { background: var(--green-bg); color: var(--green-text); }
+  .b-gray { background: var(--gray-bg); color: var(--text2); }
+
+  .checklist { margin-top: 10px; padding: 8px 10px; background: var(--bg); border-radius: 6px; font-size: 12px; }
+  .ck { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; }
+  .ck.done { color: var(--green-text); }
+  .ck .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--border); flex-shrink: 0; }
+  .ck.done .dot { background: var(--green-text); border-color: var(--green-text); }
+
+  .time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; padding: 10px; background: var(--bg); border-radius: 6px; font-size: 12px; }
+  .tf { display: flex; flex-direction: column; gap: 4px; }
+  .tf-label { color: var(--text2); }
+  .tf-value { font-weight: 600; }
+  .tf-value.late { color: var(--red-text); }
+  .tf-value.ontime { color: var(--green-text); }
+  .tf-value.empty { color: var(--text3); font-weight: 400; cursor: pointer; }
+  .tf-value.empty:hover { text-decoration: underline; }
+
+  .progress { margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--border); }
+  .p-row { font-size: 12px; color: var(--text2); padding: 3px 0; line-height: 1.5; }
+  .p-row .p-time { color: var(--text3); margin-right: 6px; }
+  .p-row .p-who { font-weight: 600; color: var(--text); }
+
+  .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .actions button { font-size: 12px; padding: 5px 10px; }
+
+  .add-btn { font-size: 12px; background: transparent; border: 1px dashed var(--border); border-radius: 6px; padding: 10px; width: 100%; color: var(--text2); cursor: pointer; margin-top: 8px; }
+  .add-btn:hover { background: var(--bg3); }
+  .empty { font-size: 13px; color: var(--text3); padding: 12px; text-align: center; }
+
+  /* Notes */
+  .notes-cat { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .notes-cat button { font-size: 12px; padding: 4px 10px; border-radius: 999px; }
+  .notes-cat button.active { background: var(--text); color: #fff; border-color: var(--text); }
+  .note { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+  .note .n-cat { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+  .note .n-title { font-weight: 600; font-size: 14px; }
+  .note .n-body { font-size: 13px; margin-top: 6px; line-height: 1.6; white-space: pre-wrap; }
+  .note .n-meta { font-size: 11px; color: var(--text3); margin-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .note .n-actions button { font-size: 11px; padding: 2px 8px; }
+
+  /* Modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+  .modal { background: #fff; border-radius: 12px; padding: 20px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+  .modal h2 { font-size: 16px; margin-bottom: 14px; }
+  .modal label { display: block; font-size: 12px; color: var(--text2); margin: 10px 0 4px; }
+  .modal textarea { min-height: 80px; resize: vertical; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+
+  .footer { display: flex; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .footer button { flex: 1; min-width: 130px; padding: 8px; }
+
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 13px; z-index: 200; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+
+  .loading { text-align: center; padding: 40px; color: var(--text2); }
+</style>
+</head>
+<body>
+
+<!-- ====== 登入畫面 ====== -->
+<div id="login-view" class="login-wrap">
+  <div class="login-box">
+    <h1>急診 Leader 交班系統</h1>
+    <label>帳號</label>
+    <input id="login-username" autocomplete="username">
+    <label>密碼</label>
+    <input id="login-password" type="password" autocomplete="current-password">
+    <button class="primary submit" onclick="doLogin()">登入</button>
+    <div class="err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ====== 主畫面 ====== -->
+<div id="app-view" style="display:none;">
+  <div class="header">
+    <div class="who">
+      操作:<strong id="me-name">—</strong> <span id="me-role" style="color:var(--text2);font-size:12px;"></span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span class="time" id="now">—</span>
+      <button class="logout" onclick="doLogout()">登出</button>
+    </div>
+  </div>
+
+  <div class="summary" id="summary"></div>
+  <div id="pending-bar"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="panes"></div>
+
+  <div class="footer">
+    <button onclick="genHandover()">產生交班摘要</button>
+    <button onclick="refreshAll(true)">重新整理</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="modal-root"></div>
+
+<script>
+// ====== 設定 ======
+const API_URL = '請填入你的 Apps Script /exec URL';
+const POLL_MS = 30000; // 30 秒輪詢
+
+// ====== State ======
+const state = {
+  token: null,
+  user: null,
+  cases: [],
+  notes: [],
+  activeTab: 'repair',
+  notesFilter: { cat: '全部', kw: '' },
+  pollTimer: null,
+};
+
+const CATS = [
+  { id: 'repair',    label: '請修',     hasTracking: true },
+  { id: 'leave',     label: '請假',     hasTracking: true },
+  { id: 'event',     label: '重大異常', hasTracking: true },
+  { id: 'complaint', label: '申訴',     hasTracking: true, tieredLevel: true },
+  { id: 'trauma',    label: '無名/重創', hasTracking: true, timed: true },
+  { id: 'clinical',  label: '臨床運作', hasTracking: true },
+  { id: 'vip',       label: '交辦/VIP', hasTracking: true },
+  { id: 'notes',     label: '守則',     isNotes: true },
+];
+
+// ====== API ======
+async function api(action, payload = {}) {
+  const body = { action, token: state.token, ...payload };
+  const json = JSON.stringify(body);
+  try {
+    let res;
+    if (json.length <= 1500 && action !== 'updateNote' && action !== 'addNote' && !payload.case && !payload.updates) {
+      // GET
+      const params = new URLSearchParams();
+      Object.entries(body).forEach(([k, v]) => {
+        params.set(k, typeof v === 'object' ? JSON.stringify(v) : v);
+      });
+      res = await fetch(`${API_URL}?${params.toString()}`);
+    } else {
+      // POST text/plain (避免 CORS preflight)
+      res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: json,
+      });
+    }
+    const data = await res.json();
+    if (data.code === 'AUTH') {
+      toast('Session 過期,請重新登入');
+      doLogout();
+      return null;
+    }
+    return data;
+  } catch (e) {
+    toast('網路錯誤:' + e.message);
+    return null;
+  }
+}
+
+// ====== Login ======
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-err');
+  errEl.textContent = '';
+  if (!username || !password) { errEl.textContent = '請輸入帳號密碼'; return; }
+  const r = await api('login', { username, password });
+  if (!r || !r.ok) { errEl.textContent = r ? r.error : '登入失敗'; return; }
+  state.token = r.token;
+  state.user = r.user;
+  localStorage.setItem('handover_token', r.token);
+  localStorage.setItem('handover_user', JSON.stringify(r.user));
+  showApp();
+}
+
+function doLogout() {
+  state.token = null;
+  state.user = null;
+  localStorage.removeItem('handover_token');
+  localStorage.removeItem('handover_user');
+  if (state.pollTimer) clearInterval(state.pollTimer);
+  document.getElementById('login-view').style.display = 'flex';
+  document.getElementById('app-view').style.display = 'none';
+}
+
+function tryRestoreSession() {
+  const token = localStorage.getItem('handover_token');
+  const userStr = localStorage.getItem('handover_user');
+  if (!token || !userStr) return false;
+  try {
+    state.token = token;
+    state.user = JSON.parse(userStr);
+    return true;
+  } catch { return false; }
+}
+
+async function showApp() {
+  document.getElementById('login-view').style.display = 'none';
+  document.getElementById('app-view').style.display = 'block';
+  document.getElementById('me-name').textContent = state.user.displayName;
+  document.getElementById('me-role').textContent = state.user.role === 'approver' ? '(可批准)' : '(leader)';
+  await refreshAll();
+  startPolling();
+  startClock();
+}
+
+// ====== Refresh ======
+async function refreshAll(showToast) {
+  const r = await api('listAll');
+  if (!r || !r.ok) return;
+  state.cases = r.cases || [];
+  state.notes = r.notes || [];
+  renderAll();
+  if (showToast) toast('已更新');
+}
+
+function startPolling() {
+  if (state.pollTimer) clearInterval(state.pollTimer);
+  state.pollTimer = setInterval(refreshAll, POLL_MS);
+}
+
+function startClock() {
+  function tick() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    document.getElementById('now').textContent =
+      `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  tick(); setInterval(tick, 30000);
+}
+
+// ====== Render ======
+function isApprover() { return state.user && state.user.role === 'approver'; }
+function nowStr() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function prioBadge(p) {
+  return p === 'high' ? '<span class="badge b-red">高</span>'
+       : p === 'med'  ? '<span class="badge b-amber">中</span>'
+       :                '<span class="badge b-gray">低</span>';
+}
+function stateBadge(s) {
+  if (s === 'pending_approval') return '<span class="badge b-amber">待批准</span>';
+  if (s === 'closed') return '<span class="badge b-green">已封緘</span>';
+  return '';
+}
+function tierBadge(t) {
+  if (t === 2 || t === '2') return '<span class="badge b-red">Tier 2 醫糾風險</span>';
+  if (t === 1 || t === '1') return '<span class="badge b-amber">Tier 1 警戒</span>';
+  return '';
+}
+function flagBadges(f) {
+  if (!f) return '';
+  const out = [];
+  if (f.supervisorInvolved) out.push('<span class="badge b-amber">長官介入</span>');
+  if (f.lawsuitRisk) out.push('<span class="badge b-red">醫糾風險</span>');
+  return out.join(' ');
+}
+function allChecked(c) {
+  return c.checklist && c.checklist.length && c.checklist.every(x => x.done);
+}
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function renderAll() {
+  renderSummary();
+  renderPendingBar();
+  renderTabs();
+  renderPanes();
+}
+
+function renderSummary() {
+  const trackable = CATS.filter(c => c.hasTracking);
+  document.getElementById('summary').innerHTML = trackable.map(c => {
+    const all = state.cases.filter(x => x.cat === c.id);
+    const open = all.filter(x => x.state !== 'closed').length;
+    const tier2 = c.id === 'complaint'
+      ? all.filter(x => (x.tier === 2 || x.tier === '2') && x.state !== 'closed').length
+      : 0;
+    const isUrgent = (c.id === 'event' && open > 0) || tier2 > 0;
+    return `<div class="stat ${isUrgent ? 'urgent' : ''}" onclick="switchTab('${c.id}')">
+      <div class="l">${c.label}</div>
+      <div class="n">${open}<span class="total"> / ${all.length}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function renderPendingBar() {
+  const pending = state.cases.filter(x => x.state === 'pending_approval');
+  if (!pending.length) { document.getElementById('pending-bar').innerHTML = ''; return; }
+  const tip = isApprover()
+    ? `<button onclick="switchToFirstPending()">前往批准</button>`
+    : `<span style="font-size:12px;">等待護理長/副護理長批准</span>`;
+  document.getElementById('pending-bar').innerHTML = `
+    <div class="pending-bar">
+      <span><strong>${pending.length}</strong> 件案件待批准封緘</span>
+      ${tip}
+    </div>`;
+}
+
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = CATS.map(c => {
+    const open = c.hasTracking ? state.cases.filter(x => x.cat === c.id && x.state !== 'closed').length : 0;
+    return `<button class="tab ${state.activeTab === c.id ? 'active' : ''}" onclick="switchTab('${c.id}')">
+      ${c.label}${open ? `<span class="badge-n">${open}</span>` : ''}
+    </button>`;
+  }).join('');
+}
+
+function renderPanes() {
+  document.getElementById('panes').innerHTML = CATS.map(c => `
+    <div class="pane ${state.activeTab === c.id ? 'active' : ''}" id="pane-${c.id}"></div>
+  `).join('');
+  CATS.forEach(c => c.isNotes ? renderNotesPane() : renderPane(c.id));
+}
+
+function renderPane(catId) {
+  const items = state.cases.filter(x => x.cat === catId);
+  const pending = items.filter(x => x.state === 'pending_approval').sort((a,b) => String(b.created).localeCompare(String(a.created)));
+  const open    = items.filter(x => x.state === 'open').sort((a,b) => String(b.created).localeCompare(String(a.created)));
+  const closed  = items.filter(x => x.state === 'closed').sort((a,b) => String(b.closedAt||'').localeCompare(String(a.closedAt||'')));
+
+  let html = '';
+  if (pending.length) {
+    html += `<div class="section-h pending">待批准封緘 (${pending.length})</div>`;
+    html += pending.map(cardHTML).join('');
+  }
+  html += `<div class="section-h">未結案 (${open.length})</div>`;
+  html += open.length ? open.map(cardHTML).join('') : '<div class="empty">沒有未結案件</div>';
+  html += `<button class="add-btn" onclick="openAddCase('${catId}')">+ 新增${CATS.find(x=>x.id===catId).label}案件</button>`;
+  if (closed.length) {
+    html += `<div class="section-h closed">已封緘 (${closed.length})</div>`;
+    html += closed.map(cardHTML).join('');
+  }
+  document.getElementById('pane-'+catId).innerHTML = html;
+}
+
+function cardHTML(c) {
+  const stateClass = c.state === 'pending_approval' ? 'pending' : c.state === 'closed' ? 'closed' : '';
+  const tierClass = (c.tier === 2 || c.tier === '2') ? 'tier2' : '';
+  return `<div class="card ${stateClass} ${tierClass}">
+    <div class="card-top">
+      <div style="flex:1; min-width:0;">
+        <div class="card-title">${escapeHtml(c.title)}</div>
+        <div class="card-meta">${escapeHtml(c.subType)} · ${escapeHtml(c.meta)} · 取得 ${escapeHtml(String(c.created).split(' ')[0])}</div>
+      </div>
+      <div class="badges">${prioBadge(c.priority)}${stateBadge(c.state)}</div>
+    </div>
+    <div class="badges-row">${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
+    <div class="card-body">${escapeHtml(c.detail)}</div>
+    ${timelineHTML(c)}
+    ${checklistHTML(c)}
+    ${progressHTML(c.progress)}
+    ${c.state === 'closed'
+      ? `<div class="card-meta" style="margin-top:8px;">已封緘 ${escapeHtml(c.closedAt)} · 批准:${escapeHtml(c.closedBy)}</div>`
+      : actionsHTML(c)}
+    <div class="card-meta" style="margin-top:6px;">負責人:<strong>${escapeHtml(c.owner)}</strong></div>
+  </div>`;
+}
+
+function checklistHTML(c) {
+  if (!c.checklist || !c.checklist.length) return '';
+  const disabled = c.state === 'closed';
+  return `<div class="checklist">${
+    c.checklist.map(it => `
+      <div class="ck ${it.done ? 'done' : ''}" ${disabled ? '' : `onclick="toggleCheck('${c.id}','${it.id}')"`}>
+        <span class="dot"></span>
+        <span>${escapeHtml(it.label)}${it.note ? ` — <em style="color:var(--text2);font-style:normal;">${escapeHtml(it.note)}</em>` : ''}</span>
+      </div>`).join('')
+  }</div>`;
+}
+
+function timelineHTML(c) {
+  if (!c.timeline) return '';
+  const tl = c.timeline;
+  const fmt = (val, status, fld) => {
+    if (!val) return `<span class="tf-value empty" onclick="setTraumaTime('${c.id}','${fld}')">點此記錄到達</span>`;
+    const cls = status === 'ontime' ? 'ontime' : status === 'late' ? 'late' : '';
+    return `<span class="tf-value ${cls}">${escapeHtml(String(val).split(' ')[1] || val)}</span>`;
+  };
+  return `<div class="time-fields">
+    <div class="tf"><span class="tf-label">抵院時間</span><span class="tf-value">${escapeHtml(String(tl.arrival||'').split(' ')[1] || tl.arrival || '—')}</span></div>
+    ${tl.traumaDr_required && tl.traumaDr_required !== '-' ? `
+      <div class="tf"><span class="tf-label">外傷醫師(${escapeHtml(tl.traumaDr_required)})</span>${fmt(tl.traumaDr_actual, tl.traumaDr_status, 'traumaDr_actual')}</div>
+    ` : ''}
+    ${tl.sw_required && tl.sw_required !== '-' ? `
+      <div class="tf"><span class="tf-label">社工(${escapeHtml(tl.sw_required)})</span>${fmt(tl.sw_actual, tl.sw_status, 'sw_actual')}</div>
+    ` : ''}
+  </div>`;
+}
+
+function progressHTML(p) {
+  if (!p || !p.length) return '';
+  const items = p.slice().reverse().slice(0, 3);
+  return `<div class="progress">${
+    items.map(x => `<div class="p-row"><span class="p-time">${escapeHtml(x.time)}</span><span class="p-who">${escapeHtml(x.who)}</span> · ${escapeHtml(x.text)}</div>`).join('')
+  }${p.length > 3 ? `<div class="p-row" style="color:var(--text3);">…還有 ${p.length-3} 筆</div>` : ''}</div>`;
+}
+
+function actionsHTML(c) {
+  if (c.state === 'pending_approval') {
+    return `<div class="actions">
+      ${isApprover()
+        ? `<button class="primary" onclick="approveCase('${c.id}')">批准封緘</button>`
+        : `<button disabled>需護理長/副護理長批准</button>`}
+      <button onclick="unsubmit('${c.id}')">退回繼續處理</button>
+    </div>`;
+  }
+  const ready = allChecked(c);
+  return `<div class="actions">
+    <button onclick="openAddProgress('${c.id}')">加註進度</button>
+    <button onclick="takeOver('${c.id}')">${c.owner === state.user.displayName ? '已是我' : '接手'}</button>
+    ${c.cat === 'complaint' && (c.tier === 1 || c.tier === '1') ? `<button class="danger" onclick="escalateTier('${c.id}')">升 Tier 2</button>` : ''}
+    ${c.cat === 'complaint' && (c.tier === 2 || c.tier === '2') ? `<button class="danger" onclick="convertToEvent('${c.id}')">轉重大異常</button>` : ''}
+    <button class="${ready ? 'primary' : ''}" onclick="submitForApproval('${c.id}')">送批准</button>
+  </div>`;
+}
+
+// ====== Notes ======
+function renderNotesPane() {
+  const allCats = ['全部', ...new Set(state.notes.map(n => n.cat).filter(Boolean))];
+  const f = state.notesFilter;
+  const filtered = state.notes.filter(n =>
+    (f.cat === '全部' || n.cat === f.cat) &&
+    (f.kw === '' || (n.title||'').includes(f.kw) || (n.body||'').includes(f.kw) || (n.cat||'').includes(f.kw))
+  );
+  document.getElementById('pane-notes').innerHTML = `
+    <input type="text" id="notes-kw" placeholder="搜尋守則..." value="${escapeHtml(f.kw)}" oninput="onNotesKw(this.value)">
+    <div class="notes-cat" style="margin-top:10px;">
+      ${allCats.map(c => `<button class="${c === f.cat ? 'active' : ''}" onclick="setNotesCat('${escapeHtml(c)}')">${escapeHtml(c)}</button>`).join('')}
+    </div>
+    ${filtered.length ? filtered.map(n => `
+      <div class="note">
+        <div class="n-cat">${escapeHtml(n.cat)}</div>
+        <div class="n-title">${escapeHtml(n.title)}</div>
+        <div class="n-body">${escapeHtml(n.body)}</div>
+        <div class="n-meta">
+          <span>${escapeHtml(n.author)} · 更新 ${escapeHtml(n.updated)}</span>
+          <span class="n-actions">
+            <button onclick="openEditNote('${n.id}')">編輯</button>
+            <button class="danger" onclick="deleteNote('${n.id}')">刪除</button>
+          </span>
+        </div>
+      </div>
+    `).join('') : '<div class="empty">查無相關守則</div>'}
+    <button class="add-btn" onclick="openAddNote()">+ 新增守則</button>
+  `;
+}
+
+function onNotesKw(v) { state.notesFilter.kw = v; renderNotesPane();
+  // 保留游標
+  const el = document.getElementById('notes-kw');
+  if (el) { el.focus(); el.setSelectionRange(v.length, v.length); }
+}
+function setNotesCat(c) { state.notesFilter.cat = c; renderNotesPane(); }
+
+// ====== Actions ======
+function switchTab(catId) { state.activeTab = catId; renderTabs(); renderPanes(); }
+function switchToFirstPending() {
+  const p = state.cases.find(x => x.state === 'pending_approval');
+  if (p) switchTab(p.cat);
+}
+
+async function toggleCheck(caseId, itemId) {
+  const r = await api('toggleCheck', { caseId, itemId });
+  if (r && r.ok) refreshAll();
+}
+
+async function takeOver(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (c && c.owner === state.user.displayName) return;
+  const r = await api('takeOver', { caseId });
+  if (r && r.ok) refreshAll();
+}
+
+async function submitForApproval(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!allChecked(c)) { toast('Checklist 尚未全部完成'); return; }
+  const r = await api('submitForApproval', { caseId });
+  if (r && r.ok) refreshAll();
+  else toast(r ? r.error : '失敗');
+}
+
+async function unsubmit(caseId) {
+  const r = await api('unsubmit', { caseId });
+  if (r && r.ok) refreshAll();
+}
+
+async function approveCase(caseId) {
+  if (!confirm('確認批准封緘?封緘後不可再修改。')) return;
+  const r = await api('approve', { caseId });
+  if (r && r.ok) { toast('已封緘'); refreshAll(); }
+  else toast(r ? r.error : '失敗');
+}
+
+async function escalateTier(caseId) {
+  if (!confirm('確定升至 Tier 2(醫糾風險)?')) return;
+  const r = await api('escalateTier', { caseId });
+  if (r && r.ok) refreshAll();
+}
+
+async function convertToEvent(caseId) {
+  if (!confirm('轉為「重大異常」?原申訴案會封緘並建立關聯事件。')) return;
+  const r = await api('convertToEvent', { caseId });
+  if (r && r.ok) { toast('已轉為重大異常'); switchTab('event'); refreshAll(); }
+}
+
+async function setTraumaTime(caseId, field) {
+  if (!confirm('用「現在時間」記錄到達?')) return;
+  const r = await api('setTraumaTime', { caseId, field });
+  if (r && r.ok) refreshAll();
+}
+
+async function deleteNote(id) {
+  if (!confirm('刪除此守則?')) return;
+  const r = await api('deleteNote', { id });
+  if (r && r.ok) refreshAll();
+}
+
+// ====== Modals: 加註進度 ======
+function openAddProgress(caseId) {
+  showModal('加註進度', `
+    <label>進度內容</label>
+    <textarea id="modal-text" placeholder="例:已聯絡廠商,預計明日到場"></textarea>
+  `, async () => {
+    const text = document.getElementById('modal-text').value.trim();
+    if (!text) { toast('請輸入內容'); return false; }
+    const r = await api('addProgress', { caseId, text });
+    if (r && r.ok) { refreshAll(); return true; }
+    return false;
+  });
+}
+
+// ====== Modals: 新增案件 ======
+function openAddCase(catId) {
+  const cat = CATS.find(x => x.id === catId);
+  const subTypeOpts = ({
+    repair:    ['醫工', '工務', '建材', '資訊'],
+    leave:     ['病假', '事假', '其他'],
+    event:     ['設備異常', '醫糾風險', '給藥錯誤', '跌倒', '其他'],
+    complaint: ['家屬不滿', '處置爭議', '候診時間', '其他'],
+    trauma:    ['無名氏', '重大創傷', '兒虐', '家暴'],
+    clinical:  ['流程', 'SOP', '跨科協調', '其他'],
+    vip:       ['VIP', '交辦', '長官關心'],
+  })[catId] || [];
+
+  const isTrauma = catId === 'trauma';
+  const isComplaint = catId === 'complaint';
+
+  showModal(`新增${cat.label}案件`, `
+    <label>子類別</label>
+    <select id="m-subType">${subTypeOpts.map(x => `<option>${x}</option>`).join('')}</select>
+    <label>標題</label>
+    <input id="m-title" placeholder="簡短描述">
+    <label>補充資訊(地點、單號、時間等)</label>
+    <input id="m-meta" placeholder="例:急救 1 床 / 單號 R-2604-018">
+    <label>詳情</label>
+    <textarea id="m-detail" placeholder="案件經過、目前狀況"></textarea>
+    <label>優先度</label>
+    <select id="m-priority">
+      <option value="high">高</option>
+      <option value="med" selected>中</option>
+      <option value="low">低</option>
+    </select>
+    ${isComplaint ? `
+      <label>申訴等級</label>
+      <select id="m-tier">
+        <option value="1">Tier 1 警戒</option>
+        <option value="2">Tier 2 醫糾風險</option>
+      </select>
+    ` : ''}
+    ${isTrauma ? `
+      <label>抵院時間 (留空=現在)</label>
+      <input id="m-arrival" placeholder="YYYY-MM-DD HH:mm">
+      <label>類型</label>
+      <select id="m-traumaType">
+        <option value="trauma">重大創傷(外傷醫師 5 分鐘內)</option>
+        <option value="anonymous">無名氏(社工 30 分鐘內)</option>
+        <option value="both">兩者皆需</option>
+      </select>
+    ` : ''}
+  `, async () => {
+    const c = {
+      cat: catId,
+      subType: document.getElementById('m-subType').value,
+      title: document.getElementById('m-title').value.trim(),
+      meta: document.getElementById('m-meta').value.trim(),
+      detail: document.getElementById('m-detail').value.trim(),
+      priority: document.getElementById('m-priority').value,
+      checklist: defaultChecklist(catId, isComplaint ? Number(document.getElementById('m-tier').value) : null),
+    };
+    if (!c.title) { toast('請填標題'); return false; }
+    if (isComplaint) c.tier = Number(document.getElementById('m-tier').value);
+    if (isTrauma) {
+      const tt = document.getElementById('m-traumaType').value;
+      const arr = document.getElementById('m-arrival').value.trim() || nowStr();
+      c.timeline = {
+        arrival: arr,
+        traumaDr_required: (tt === 'trauma' || tt === 'both') ? '5 分鐘內' : '-',
+        traumaDr_actual: null, traumaDr_status: null,
+        sw_required: (tt === 'anonymous' || tt === 'both') ? '30 分鐘內' : '-',
+        sw_actual: null, sw_status: null,
+      };
+    }
+    if (isComplaint && c.tier === 2) {
+      c.flags = { supervisorInvolved: true, lawsuitRisk: true };
+      c.priority = 'high';
+    }
+    const r = await api('addCase', { case: c });
+    if (r && r.ok) { refreshAll(); return true; }
+    toast(r ? r.error : '失敗'); return false;
+  });
+}
+
+function defaultChecklist(catId, tier) {
+  const lists = {
+    repair: [
+      { id: 'submit',   label: '已開請修單',           done: false },
+      { id: 'process',  label: '處理中',               done: false },
+      { id: 'result',   label: '維修完成或報廢確認',   done: false },
+      { id: 'purchase', label: '若報廢→購買到貨',     done: false },
+    ],
+    leave: [
+      { id: 'reported',  label: '通報並安排代班', done: false },
+      { id: 'returned',  label: '人員回來上班',   done: false },
+      { id: 'paperwork', label: '請假單補簽核',   done: false },
+    ],
+    event: [
+      { id: 'reported',     label: '班內主管知會',          done: false },
+      { id: 'sac_decision', label: '病安 SAC 決策',         done: false },
+      { id: 'pdca',         label: 'PDCA 完成',             done: false },
+      { id: 'tracking',     label: '事件追蹤單繳交',        done: false },
+    ],
+    complaint: tier === 2 ? [
+      { id: 'documented',     label: '已記錄客訴內容',         done: false },
+      { id: 'apologized',     label: '已當面說明 / 道歉',      done: false },
+      { id: 'escalated',      label: '已轉法務 / 關懷團隊',    done: false },
+      { id: 'reply',          label: '書面回覆完成',           done: false },
+      { id: 'closed_or_event',label: '處理完成或轉重大異常',   done: false },
+    ] : [
+      { id: 'documented', label: '已記錄客訴內容',  done: false },
+      { id: 'apologized', label: '已當面說明 / 道歉', done: false },
+      { id: 'monitor',    label: '48 小時觀察是否升溫', done: false },
+    ],
+    trauma: [
+      { id: 'team',     label: '團隊到位',          done: false },
+      { id: 'imaging',  label: '影像/實驗室完成',  done: false },
+      { id: 'admit',    label: '入院 / 開刀房安排', done: false },
+    ],
+    clinical: [
+      { id: 'identified', label: '問題定義清楚',         done: false },
+      { id: 'discussed',  label: '已與相關科室討論',     done: false },
+      { id: 'solution',   label: '改善方案產出',         done: false },
+      { id: 'pilot',      label: '試行 / 落實',          done: false },
+    ],
+    vip: [
+      { id: 'briefed',     label: '通知主治、主任',     done: false },
+      { id: 'monitored',   label: '每班定時關注',       done: false },
+      { id: 'discharged',  label: '病人離院 / 轉出',    done: false },
+    ],
+  };
+  return lists[catId] || [];
+}
+
+// ====== Modals: 守則新增/編輯 ======
+function openAddNote() { openNoteModal(null); }
+function openEditNote(id) {
+  const n = state.notes.find(x => x.id === id);
+  if (n) openNoteModal(n);
+}
+function openNoteModal(note) {
+  showModal(note ? '編輯守則' : '新增守則', `
+    <label>分類</label>
+    <input id="m-ncat" value="${note ? escapeHtml(note.cat) : ''}" placeholder="例:病安通報、醫糾應對">
+    <label>標題</label>
+    <input id="m-ntitle" value="${note ? escapeHtml(note.title) : ''}">
+    <label>內容</label>
+    <textarea id="m-nbody" style="min-height:160px;">${note ? escapeHtml(note.body) : ''}</textarea>
+  `, async () => {
+    const cat = document.getElementById('m-ncat').value.trim();
+    const title = document.getElementById('m-ntitle').value.trim();
+    const body = document.getElementById('m-nbody').value.trim();
+    if (!cat || !title || !body) { toast('請填完整'); return false; }
+    const r = note
+      ? await api('updateNote', { id: note.id, cat, title, body })
+      : await api('addNote',    { cat, title, body });
+    if (r && r.ok) { refreshAll(); return true; }
+    return false;
+  });
+}
+
+// ====== Generic Modal ======
+function showModal(title, contentHTML, onSubmit) {
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <h2>${escapeHtml(title)}</h2>
+        ${contentHTML}
+        <div class="modal-actions">
+          <button onclick="closeModal()">取消</button>
+          <button class="primary" id="modal-submit">確認</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modal-submit').onclick = async () => {
+    const ok = await onSubmit();
+    if (ok) closeModal();
+  };
+}
+function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
+
+// ====== 交班摘要 ======
+function genHandover() {
+  const me = state.user.displayName;
+  const now = nowStr();
+  let txt = `急診 Leader 交班摘要\n交班人:${me}\n時間:${now}\n${'='.repeat(40)}\n\n`;
+
+  // 待批准
+  const pending = state.cases.filter(x => x.state === 'pending_approval');
+  if (pending.length) {
+    txt += `🔶 待批准封緘 (${pending.length} 件)\n`;
+    pending.forEach(c => txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title} — ${c.owner}\n`);
+    txt += '\n';
+  }
+
+  // 高優 / 醫糾 / 長官
+  const critical = state.cases.filter(x => x.state === 'open' && (
+    x.priority === 'high' ||
+    (x.flags && (x.flags.lawsuitRisk || x.flags.supervisorInvolved)) ||
+    x.tier === 2 || x.tier === '2'
+  ));
+  if (critical.length) {
+    txt += `🔴 高優先 / 醫糾 / 長官介入 (${critical.length} 件)\n`;
+    critical.forEach(c => {
+      const tags = [];
+      if (c.flags && c.flags.lawsuitRisk) tags.push('醫糾');
+      if (c.flags && c.flags.supervisorInvolved) tags.push('長官');
+      if (c.tier === 2 || c.tier === '2') tags.push('Tier2');
+      txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title}${tags.length?` 〔${tags.join(',')}〕`:''} — ${c.owner}\n`;
+      const lastP = c.progress && c.progress[c.progress.length-1];
+      if (lastP) txt += `    最新進度:${lastP.text}\n`;
+    });
+    txt += '\n';
+  }
+
+  // 各類別未結案
+  CATS.filter(c => c.hasTracking).forEach(cat => {
+    const open = state.cases.filter(x => x.cat === cat.id && x.state === 'open');
+    if (!open.length) return;
+    txt += `▸ ${cat.label} (${open.length} 件未結)\n`;
+    open.forEach(c => txt += `  • ${c.title} — ${c.owner}\n`);
+    txt += '\n';
+  });
+
+  // 顯示
+  showModal('交班摘要', `
+    <textarea style="min-height:300px;font-family:monospace;font-size:12px;" readonly>${escapeHtml(txt)}</textarea>
+    <div style="font-size:12px;color:var(--text2);margin-top:8px;">可全選複製貼到 LINE / Email</div>
+  `, async () => {
+    try { await navigator.clipboard.writeText(txt); toast('已複製到剪貼簿'); } catch {}
+    return true;
+  });
+}
+
+// ====== Toast ======
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ====== 初始化 ======
+window.addEventListener('DOMContentLoaded', async () => {
+  if (tryRestoreSession()) {
+    // 驗證 session 是否還有效
+    const r = await api('listAll');
+    if (r && r.ok) { showApp(); return; }
+    doLogout();
+  }
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+});
+</script>
+</body>
+</html>

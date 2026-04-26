@@ -176,6 +176,33 @@
   .modal { background: var(--bg2); border-radius: 14px; padding: 22px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
   .modal h2 { font-size: 18px; margin-bottom: 14px; font-weight: 600; }
   .modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
+  .modal-large { max-width: 720px; }
+
+  /* 交班摘要 */
+  .hd-wrap { font-size: 15px; line-height: 1.7; }
+  .hd-meta { display: flex; gap: 20px; padding: 12px 14px; background: var(--bg); border-radius: 8px; margin-bottom: 14px; font-size: 14px; flex-wrap: wrap; }
+  .hd-meta .hd-k { color: var(--text2); margin-right: 6px; }
+  .hd-section { margin-bottom: 16px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--border); }
+  .hd-section.hd-pending { background: linear-gradient(180deg, #fff8e7 0%, #fff4dc 100%); border-color: var(--amber-bd); }
+  .hd-section.hd-critical { background: linear-gradient(180deg, #fff1f1 0%, #ffe7e7 100%); border-color: var(--red-bd); }
+  .hd-section.hd-others { background: var(--bg2); }
+  .hd-h { font-size: 16px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .hd-pending .hd-h { color: var(--amber-text); }
+  .hd-critical .hd-h { color: var(--red-text); }
+  .hd-count { background: rgba(0,0,0,0.08); padding: 1px 10px; border-radius: 999px; font-size: 13px; }
+  .hd-count-sm { color: var(--text2); font-size: 13px; font-weight: 400; margin-left: 4px; }
+  .hd-row { padding: 6px 0; font-size: 15px; line-height: 1.6; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; border-bottom: 1px dashed rgba(0,0,0,0.06); }
+  .hd-row:last-child { border-bottom: none; }
+  .hd-row-block { flex-direction: column; align-items: flex-start; padding: 8px 0; }
+  .hd-row-block > div:first-child { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  .hd-cat { background: var(--accent-bg); color: var(--accent-d); font-size: 12px; padding: 2px 9px; border-radius: 999px; font-weight: 600; flex-shrink: 0; }
+  .hd-title { flex: 1; font-weight: 500; min-width: 200px; }
+  .hd-owner { color: var(--text2); font-size: 14px; }
+  .hd-tag { background: var(--red-bg); color: var(--red-text); font-size: 12px; padding: 2px 9px; border-radius: 999px; font-weight: 600; }
+  .hd-progress { color: var(--text2); font-size: 14px; margin-top: 4px; padding-left: 4px; }
+  .hd-cat-group { margin-top: 12px; }
+  .hd-cat-group:first-child { margin-top: 0; }
+  .hd-cat-h { font-size: 14px; font-weight: 600; color: var(--accent-d); padding-bottom: 4px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
 
   /* 病人摘要 */
   .patient-info { margin-top: 12px; padding: 12px 14px; background: linear-gradient(180deg, #f0f8fc 0%, #e6f0fb 100%); border-left: 3px solid var(--blue-text); border-radius: 8px; }
@@ -1551,9 +1578,10 @@ function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
 function genHandover() {
   const me = state.user.displayName;
   const now = nowStr();
+
+  // ----- 純文字版本(用於複製) -----
   let txt = `急診 Leader 交班摘要\n交班人:${me}\n時間:${now}\n${'='.repeat(40)}\n\n`;
 
-  // 待批准
   const pending = state.cases.filter(x => x.state === 'pending_approval');
   if (pending.length) {
     txt += `🔶 待批准封緘 (${pending.length} 件)\n`;
@@ -1561,7 +1589,6 @@ function genHandover() {
     txt += '\n';
   }
 
-  // 高優 / 醫糾 / 長官
   const critical = state.cases.filter(x => x.state === 'open' && (
     x.priority === 'high' ||
     (x.flags && (x.flags.lawsuitRisk || x.flags.supervisorInvolved)) ||
@@ -1581,7 +1608,6 @@ function genHandover() {
     txt += '\n';
   }
 
-  // 各類別未結案
   CATS.filter(c => c.hasTracking).forEach(cat => {
     const open = state.cases.filter(x => x.cat === cat.id && x.state === 'open');
     if (!open.length) return;
@@ -1590,14 +1616,115 @@ function genHandover() {
     txt += '\n';
   });
 
-  // 顯示
-  showModal('交班摘要', `
-    <textarea style="min-height:300px;font-family:monospace;font-size:12px;" readonly>${escapeHtml(txt)}</textarea>
-    <div style="font-size:12px;color:var(--text2);margin-top:8px;">可全選複製貼到 LINE / Email</div>
-  `, async () => {
-    try { await navigator.clipboard.writeText(txt); toast('已複製到剪貼簿'); } catch {}
-    return true;
+  // ----- 漂亮的 HTML 版本(顯示用) -----
+  let html = `<div class="hd-meta">
+    <div><span class="hd-k">交班人</span><strong>${escapeHtml(me)}</strong></div>
+    <div><span class="hd-k">時間</span><strong>${escapeHtml(now)}</strong></div>
+  </div>`;
+
+  if (pending.length) {
+    html += `<div class="hd-section hd-pending">
+      <div class="hd-h">🔶 待批准封緘 <span class="hd-count">${pending.length}</span></div>
+      ${pending.map(c => `
+        <div class="hd-row">
+          <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
+          <span class="hd-title">${escapeHtml(c.title)}</span>
+          <span class="hd-owner">${escapeHtml(c.owner)}</span>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  if (critical.length) {
+    html += `<div class="hd-section hd-critical">
+      <div class="hd-h">🔴 高優先 / 醫糾 / 長官介入 <span class="hd-count">${critical.length}</span></div>
+      ${critical.map(c => {
+        const tags = [];
+        if (c.flags && c.flags.lawsuitRisk) tags.push('醫糾');
+        if (c.flags && c.flags.supervisorInvolved) tags.push('長官');
+        if (c.tier === 2 || c.tier === '2') tags.push('Tier 2');
+        const lastP = c.progress && c.progress[c.progress.length-1];
+        return `<div class="hd-row hd-row-block">
+          <div>
+            <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
+            <span class="hd-title">${escapeHtml(c.title)}</span>
+            ${tags.map(t => `<span class="hd-tag">${t}</span>`).join('')}
+            <span class="hd-owner">${escapeHtml(c.owner)}</span>
+          </div>
+          ${lastP ? `<div class="hd-progress">▸ ${escapeHtml(lastP.text)}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // 各類別未結案
+  let othersHtml = '';
+  let othersCount = 0;
+  CATS.filter(c => c.hasTracking).forEach(cat => {
+    const open = state.cases.filter(x => x.cat === cat.id && x.state === 'open');
+    if (!open.length) return;
+    othersCount += open.length;
+    othersHtml += `<div class="hd-cat-group">
+      <div class="hd-cat-h">${cat.label} <span class="hd-count-sm">${open.length} 件</span></div>
+      ${open.map(c => `<div class="hd-row">
+        <span class="hd-title">${escapeHtml(c.title)}</span>
+        <span class="hd-owner">${escapeHtml(c.owner)}</span>
+      </div>`).join('')}
+    </div>`;
   });
+  if (othersHtml) {
+    html += `<div class="hd-section hd-others">
+      <div class="hd-h">📋 各類未結案 <span class="hd-count">${othersCount}</span></div>
+      ${othersHtml}
+    </div>`;
+  }
+
+  if (!pending.length && !critical.length && !othersHtml) {
+    html += `<div style="text-align:center;padding:40px;color:var(--text2);font-size:16px;">
+      🎉 目前沒有未結案件,完美交班!
+    </div>`;
+  }
+
+  // 顯示 modal(用更大的 size + 真實 HTML 預覽)
+  showModalLarge('交班摘要', `
+    <div class="hd-wrap">
+      ${html}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="primary" style="flex:1;" onclick="copyHandover()">📋 複製純文字版到剪貼簿</button>
+      <button onclick="window._handoverTxt && (window.open('','_blank').document.body.innerText = window._handoverTxt)" style="display:none;">另開視窗</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-top:8px;line-height:1.5;">
+      複製後可貼到 LINE / Email / Word。複製版為純文字格式,適合各種工具。
+    </div>
+  `, () => true);
+
+  // 把純文字版暫存到 window,給複製按鈕用
+  window._handoverTxt = txt;
+}
+
+async function copyHandover() {
+  if (!window._handoverTxt) return;
+  try {
+    await navigator.clipboard.writeText(window._handoverTxt);
+    toast('已複製到剪貼簿');
+  } catch (e) {
+    toast('複製失敗,請手動選取');
+  }
+}
+
+// 大型 modal(寬一點,給交班摘要用)
+function showModalLarge(title, contentHTML, onSubmit) {
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal modal-large">
+        <h2>${escapeHtml(title)}</h2>
+        ${contentHTML}
+        <div class="modal-actions">
+          <button onclick="closeModal()">關閉</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 // ====== Toast ======

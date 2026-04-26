@@ -474,7 +474,14 @@ async function showApp() {
 // ====== Refresh ======
 async function refreshAll(showToast) {
   const r = await api('listAll');
-  if (!r || !r.ok) return;
+  if (!r || !r.ok) {
+    // 即使 API 失敗,也要渲染基本框架(讓 sidebar 顯示出來)
+    state.cases = state.cases || [];
+    state.notes = state.notes || [];
+    renderAll();
+    if (r && r.error) toast('資料載入失敗:' + r.error);
+    return;
+  }
   state.cases = r.cases || [];
   state.notes = r.notes || [];
   renderAll();

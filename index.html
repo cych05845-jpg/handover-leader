@@ -113,11 +113,14 @@
   .section-h.closed::before { background: var(--text3); }
 
   /* 案件卡 */
-  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; transition: border-color 0.15s; }
-  .card:hover { border-color: var(--border2); }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; transition: border-color 0.15s, box-shadow 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06); position: relative; }
+  .card:hover { border-color: var(--border2); box-shadow: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06); }
   .card.pending { border-color: var(--amber-bd); background: linear-gradient(180deg, #fffaee 0%, var(--bg2) 100%); }
   .card.closed { background: var(--bg3); opacity: 0.75; }
   .card.tier2 { border-left: 4px solid var(--red-text); }
+  /* 案件之間用斷裂線分隔 */
+  .card + .card { position: relative; }
+  .card + .card::before { content: ''; position: absolute; top: -10px; left: 24px; right: 24px; border-top: 1px dashed var(--border); }
   .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   .card-title { font-weight: 600; font-size: 24px; line-height: 1.4; }
   .card-meta { font-size: 20px; color: var(--text2); margin-top: 4px; line-height: 1.5; }
@@ -143,6 +146,30 @@
   @keyframes ck-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 56, 43, 0.4); } 50% { box-shadow: 0 0 0 4px rgba(192, 56, 43, 0); } }
   .ck-tag { display: inline-block; background: var(--red-bg); color: var(--red-text); font-size: 18px; padding: 1px 8px; border-radius: 999px; font-weight: 600; margin-left: 4px; }
   .ck-overdue-banner { background: var(--red-bg); color: var(--red-text); padding: 8px 12px; border-radius: 6px; font-weight: 600; margin-bottom: 8px; border-left: 3px solid var(--red-text); }
+
+  /* 狀態標籤 */
+  .cs-status { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 999px; font-size: 19px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .cs-status:hover { transform: translateY(-1px); }
+  .cs-status.st-active { background: #e6f7ec; color: #0a7a3b; }
+  .cs-status.st-wait { background: #fff4dc; color: #a06800; }
+  .cs-status.st-done { background: var(--accent-bg); color: var(--accent-d); }
+  .cs-status.st-custom { background: var(--gray-bg); color: var(--text); }
+
+  /* 狀態 picker 按鈕 */
+  .status-pick-btn { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+  .status-pick-btn:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-d); }
+  .status-pick-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .status-pick-btn.active:hover { background: var(--accent-d); border-color: var(--accent-d); color: #fff; }
+
+  /* 交班宣導 */
+  .card.announce { border-left: 4px solid #b8860b; box-shadow: 0 1px 3px rgba(184,134,11,0.15), 0 1px 2px rgba(0,0,0,0.06); }
+  .announce-banner { background: linear-gradient(90deg, #fff8e1 0%, #fff4dc 100%); color: #5d4407; padding: 8px 14px; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 21px; margin: -18px -20px 12px -20px; border-bottom: 2px solid #b8860b; }
+  .announce-btn-active { background: #fff4dc !important; color: #5d4407 !important; border-color: #b8860b !important; font-weight: 700; }
+
+  /* 交班摘要的宣導區塊(最顯眼)*/
+  .hd-section.hd-announce { background: linear-gradient(180deg, #fff4dc 0%, #ffe8a8 100%); border-color: #b8860b; border-width: 2px; }
+  .hd-announce .hd-h { color: #5d4407; }
+  .hd-status { color: var(--text2); font-size: 24px; font-weight: 500; background: rgba(255,255,255,0.6); padding: 2px 10px; border-radius: 6px; }
 
   /* 病人離院特殊樣式 */
   .card.runaway { border-left: 4px solid #b8860b; }
@@ -388,6 +415,7 @@ const CATS = [
   { id: 'trauma',    label: '無名/重創', hasTracking: true, timed: true },
   { id: 'clinical',  label: '臨床運作', hasTracking: true },
   { id: 'vip',       label: '交辦/VIP', hasTracking: true },
+  { id: 'announce',  label: '宣導事項', isAnnounce: true },
   { id: 'notes',     label: '守則',     isNotes: true },
   { id: 'archived',  label: '已歸檔',   isArchived: true },
   { id: 'users',     label: '帳號管理', isUsers: true },
@@ -608,6 +636,7 @@ const NAV_ICONS = {
   trauma:    '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
   clinical:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>',
   vip:       '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  announce:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17h-2c0-4.97-4.03-9-9-9V6h-1v2c-4.97 0-9 4.03-9 9H1"/><path d="M11 11v8a3 3 0 0 1-3 3v0a3 3 0 0 1-3-3v-8"/><line x1="11" y1="6" x2="11" y2="2"/></svg>',
   notes:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
   archived:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
   users:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
@@ -616,11 +645,16 @@ const NAV_ICONS = {
 
 function renderTabs() {
   document.getElementById('sidebar-nav').innerHTML = CATS.map(c => {
-    const open = c.hasTracking ? state.cases.filter(x => x.cat === c.id && x.state !== 'closed').length : 0;
+    let badge = 0;
+    if (c.hasTracking) {
+      badge = state.cases.filter(x => x.cat === c.id && x.state !== 'closed' && String(x.deleted || '') !== 'yes').length;
+    } else if (c.isAnnounce) {
+      badge = announceCount();
+    }
     return `<div class="nav-item ${state.activeTab === c.id ? 'active' : ''}" onclick="switchTab('${c.id}')">
       ${NAV_ICONS[c.id] || ''}
       <span class="nav-label">${c.label}</span>
-      ${open ? `<span class="nav-badge">${open}</span>` : ''}
+      ${badge ? `<span class="nav-badge">${badge}</span>` : ''}
     </div>`;
   }).join('');
   // 同步頂部標題
@@ -636,7 +670,43 @@ function renderPanes() {
   else if (cat.isUsers) renderUsersPane();
   else if (cat.isSettings) renderSettingsPane();
   else if (cat.isArchived) renderArchivedPane();
+  else if (cat.isAnnounce) renderAnnouncePane();
   else renderPane(catId);
+}
+
+// sidebar 上的宣導事項數量徽章
+function announceCount() {
+  return state.cases.filter(c =>
+    c.flags && c.flags.announce &&
+    String(c.deleted || '') !== 'yes' &&
+    c.state !== 'closed'
+  ).length;
+}
+
+function renderAnnouncePane() {
+  const items = state.cases
+    .filter(c => c.flags && c.flags.announce && String(c.deleted || '') !== 'yes')
+    .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
+
+  const root = document.getElementById('pane-announce');
+  if (!items.length) {
+    root.innerHTML = `
+      <div style="background:var(--accent-bg);color:var(--accent-d);padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:21px;line-height:1.6;">
+        🔔 <strong>交班宣導</strong>是用來標記「交班時要口頭講」的事件,例如新流程、注意事項、需團隊知道的異常。<br>
+        在任何案件上點「🔔 標為宣導」就會自動歸入這裡。
+      </div>
+      <div class="empty">目前沒有需宣導的事項</div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div style="background:#fff8e1;color:#5d4407;padding:14px 18px;border-radius:10px;margin-bottom:14px;font-size:21px;font-weight:600;border-left:4px solid #b8860b;">
+      🔔 共 ${items.length} 件需在交班時口頭宣導
+    </div>
+  `;
+  html += items.map(c => cardHTML(c)).join('');
+  root.innerHTML = html;
 }
 
 function renderPane(catId) {
@@ -660,31 +730,125 @@ function renderPane(catId) {
   document.getElementById('pane-'+catId).innerHTML = html;
 }
 
+// 展開狀態存到 state(切分頁不會收起)
+if (!state.expanded) state.expanded = new Set();
+
+function toggleExpand(caseId, ev) {
+  // 點到按鈕、checklist、附件等,不要展開
+  if (ev) {
+    const tag = ev.target.tagName;
+    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'A' || tag === 'IMG') return;
+    if (ev.target.closest('button,input,a,.checklist,.attach,.patient-info,.staff-info,.time-fields,.actions,.p-del')) return;
+  }
+  if (state.expanded.has(caseId)) state.expanded.delete(caseId);
+  else state.expanded.add(caseId);
+  // 局部更新該卡片
+  renderPanes();
+}
+
+function expandAll(catId) {
+  state.cases.filter(c => c.cat === catId).forEach(c => state.expanded.add(c.id));
+  renderPanes();
+}
+function collapseAll(catId) {
+  state.cases.filter(c => c.cat === catId).forEach(c => state.expanded.delete(c.id));
+  renderPanes();
+}
+
+// 計算「N 天前」
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(String(dateStr).replace(' ', 'T'));
+  if (isNaN(d)) return '';
+  const min = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (min < 1) return '剛才';
+  if (min < 60) return `${min} 分鐘前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} 小時前`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day} 天前`;
+  const mo = Math.floor(day / 30);
+  return `${mo} 個月前`;
+}
+
 function cardHTML(c) {
   const stateClass = c.state === 'pending_approval' ? 'pending' : c.state === 'closed' ? 'closed' : '';
   const tierClass = (c.tier === 2 || c.tier === '2') ? 'tier2' : '';
   const runawayClass = (c.cat === 'event' && c.subType === '病人離院') ? 'runaway' : '';
-  return `<div class="card ${stateClass} ${tierClass} ${runawayClass}">
-    <div class="card-top">
-      <div style="flex:1; min-width:0;">
-        <div class="card-title">${escapeHtml(c.title)}</div>
-        <div class="card-meta">${escapeHtml(c.subType)} · ${escapeHtml(c.meta)} · 取得 ${escapeHtml(String(c.created).split(' ')[0])}</div>
+  const isExpanded = state.expanded.has(c.id);
+  const expandedClass = isExpanded ? 'expanded' : 'collapsed';
+
+  // 進度統計
+  const total = c.checklist ? c.checklist.length : 0;
+  const done = c.checklist ? c.checklist.filter(x => x.done).length : 0;
+  const pct = total > 0 ? Math.round(done / total * 100) : 0;
+
+  // 最新一筆 progress
+  const lastProgress = c.progress && c.progress.length ? c.progress[c.progress.length - 1] : null;
+
+  // 是否逾期(7 天未更新 + 未結案)
+  const updateAgo = timeAgo(c.updatedAt || c.created);
+  const daysOld = (() => {
+    const d = new Date(String(c.updatedAt || c.created).replace(' ', 'T'));
+    if (isNaN(d)) return 0;
+    return Math.floor((Date.now() - d.getTime()) / 86400000);
+  })();
+  const stale = c.state === 'open' && daysOld >= 3;
+
+  const announce = !!(c.flags && c.flags.announce);
+  const announceClass = announce ? 'announce' : '';
+
+  return `<div class="card ${stateClass} ${tierClass} ${runawayClass} ${announceClass} ${expandedClass} ${stale ? 'stale' : ''}" onclick="toggleExpand('${c.id}', event)">
+
+    ${announce ? `<div class="announce-banner">🔔 交班需口頭宣導</div>` : ''}
+
+    <!-- 摘要區(永遠顯示)-->
+    <div class="card-summary">
+      <div class="cs-line1">
+        <span class="cs-prio">${prioBadge(c.priority)}</span>
+        <span class="cs-cat">${escapeHtml(c.subType || '')}</span>
+        <span class="cs-title">${escapeHtml(c.title)}</span>
+        <span class="cs-toggle">${isExpanded ? '▴' : '▾'}</span>
       </div>
-      <div class="badges">${prioBadge(c.priority)}${stateBadge(c.state)}</div>
+
+      <div class="cs-line2">
+        <span class="cs-status ${statusClass(c.waitingFor)}" onclick="event.stopPropagation();openStatusPicker('${c.id}')">${statusIcon(c.waitingFor)} ${escapeHtml(c.waitingFor || '處理中')} ▾</span>
+        <span class="cs-time">⏱ ${escapeHtml(updateAgo)}${stale ? ` <span class="cs-stale-tag">${daysOld} 天未動</span>` : ''}</span>
+        ${total > 0 ? `<span class="cs-progress-text">${done}/${total}</span>` : ''}
+        ${stateBadge(c.state)}
+      </div>
+
+      ${total > 0 ? `
+        <div class="cs-progress-bar">
+          <div class="cs-progress-fill" style="width:${pct}%"></div>
+        </div>
+      ` : ''}
+
+      <div class="cs-flags">${affiliationBadge(c)}${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
+
+      ${lastProgress && !isExpanded ? `
+        <div class="cs-last-progress">▸ <span class="cs-lp-who">${escapeHtml(lastProgress.who)}</span> ${escapeHtml(lastProgress.text)}</div>
+      ` : ''}
     </div>
-    <div class="badges-row">${affiliationBadge(c)}${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
-    ${runawayClass ? runawayBanner(c) : ''}
-    <div class="card-body">${escapeHtml(c.detail)}</div>
-    ${patientInfoHTML(c)}
-    ${staffInfoHTML(c)}
-    ${timelineHTML(c)}
-    ${checklistHTML(c)}
-    ${attachmentsHTML(c)}
-    ${progressHTML(c.progress, c.id, c.state === 'closed')}
-    ${c.state === 'closed'
-      ? `<div class="card-meta" style="margin-top:8px;">已封緘 ${escapeHtml(c.closedAt)} · 批准:${escapeHtml(c.closedBy)}</div>`
-      : actionsHTML(c)}
-    <div class="card-meta" style="margin-top:6px;">負責人:<strong>${escapeHtml(c.owner)}</strong></div>
+
+    <!-- 詳細內容(展開才顯示)-->
+    ${isExpanded ? `
+      <div class="card-detail">
+        ${runawayClass ? runawayBanner(c) : ''}
+        <div class="card-body">${escapeHtml(c.detail || '')}</div>
+        ${patientInfoHTML(c)}
+        ${staffInfoHTML(c)}
+        ${timelineHTML(c)}
+        ${checklistHTML(c)}
+        ${attachmentsHTML(c)}
+        ${progressHTML(c.progress, c.id, c.state === 'closed')}
+        ${c.state === 'closed'
+          ? `<div class="card-meta" style="margin-top:10px;">已封緘 ${escapeHtml(c.closedAt)} · 批准:${escapeHtml(c.closedBy)}</div>`
+          : actionsHTML(c)}
+        <div class="card-meta" style="margin-top:8px;">取得 ${escapeHtml(String(c.created).split(' ')[0])} · ${escapeHtml(c.meta || '')}</div>
+      </div>
+    ` : ''}
+
   </div>`;
 }
 
@@ -698,6 +862,94 @@ function affiliationBadge(c) {
   };
   const a = map[c.affiliation];
   return a ? `<span class="badge ${a.cls}">${a.label}</span>` : '';
+}
+
+// ====== 案件狀態(已做了什麼裁決)======
+const STATUS_OPTIONS = [
+  { value: '處理中',         icon: '🟢', cls: 'st-active' },
+  { value: '已通報主管',     icon: '📢', cls: 'st-wait' },
+  { value: '已反映給',       icon: '↪️', cls: 'st-wait', needsTarget: true },
+  { value: '已採購',         icon: '🛒', cls: 'st-wait' },
+  { value: '等單',           icon: '📋', cls: 'st-wait' },
+  { value: '釐清中',         icon: '🔍', cls: 'st-wait' },
+  { value: '完成,等批准',   icon: '✅', cls: 'st-done' },
+];
+
+function statusIcon(s) {
+  if (!s) return '🟢';
+  // 處理「已反映給:資訊室」這種帶冒號的情況
+  const base = String(s).split(':')[0].split(':')[0];
+  const opt = STATUS_OPTIONS.find(x => x.value === base);
+  return opt ? opt.icon : '🔧';
+}
+
+function statusClass(s) {
+  if (!s || s === '處理中') return 'st-active';
+  const base = String(s).split(':')[0].split(':')[0];
+  const opt = STATUS_OPTIONS.find(x => x.value === base);
+  return opt ? opt.cls : 'st-custom';
+}
+
+function openStatusPicker(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const cur = c.waitingFor || '處理中';
+
+  showModal('案件狀態:目前到哪一步?', `
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      ${STATUS_OPTIONS.map(opt => {
+        const matched = opt.needsTarget
+          ? cur.indexOf(opt.value) === 0
+          : cur === opt.value;
+        return `
+        <button onclick="${opt.needsTarget ? `pickStatusWithTarget('${caseId}', ${JSON.stringify(opt.value).replace(/"/g, '&quot;')})` : `setStatus('${caseId}', ${JSON.stringify(opt.value).replace(/"/g, '&quot;')})`}"
+                class="status-pick-btn ${matched ? 'active' : ''}"
+                style="text-align:left;padding:14px 18px;font-size:21px;">
+          ${opt.icon} ${escapeHtml(opt.value)}${opt.needsTarget ? ' <span style="color:var(--text3);font-size:18px;">(需填對象)</span>' : ''}
+        </button>`;
+      }).join('')}
+      <button onclick="setStatusCustom('${caseId}')" class="status-pick-btn"
+              style="text-align:left;padding:14px 18px;font-size:21px;border-style:dashed;">
+        🔧 其他(手動填寫)
+      </button>
+    </div>
+  `, () => true);
+}
+
+function pickStatusWithTarget(caseId, baseLabel) {
+  closeModal();
+  const target = prompt(`${baseLabel} — 反映對象?\n\n例:資訊室、廠商、醫療部、3F 病房、家屬、李醫師`);
+  if (!target) return;
+  setStatus(caseId, `${baseLabel}:${target.trim()}`);
+}
+
+async function setStatus(caseId, value) {
+  closeModal();
+  const r = await api('updateCase', { caseId, updates: { waitingFor: value } });
+  if (r && r.ok) { toast(`狀態:${value}`); refreshAll(); }
+  else toast(r ? r.error : '更新失敗');
+}
+
+async function setStatusCustom(caseId) {
+  closeModal();
+  const v = prompt('請輸入狀態(短句即可,例:等李醫師簽名)');
+  if (!v) return;
+  const r = await api('updateCase', { caseId, updates: { waitingFor: v.trim() } });
+  if (r && r.ok) { toast(`狀態:${v}`); refreshAll(); }
+  else toast(r ? r.error : '更新失敗');
+}
+
+// ====== 交班宣導旗標 ======
+async function toggleAnnounce(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const cur = !!(c.flags && c.flags.announce);
+  const newFlags = { ...(c.flags || {}), announce: !cur };
+  const r = await api('updateCase', { caseId, updates: { flags: newFlags } });
+  if (r && r.ok) {
+    toast(cur ? '已取消宣導' : '已標記為交班宣導');
+    refreshAll();
+  } else toast(r ? r.error : '更新失敗');
 }
 
 // 病人離院的一週倒數提醒
@@ -968,9 +1220,10 @@ function actionsHTML(c) {
     </div>`;
   }
   const ready = allChecked(c);
+  const announce = !!(c.flags && c.flags.announce);
   return `<div class="actions">
     <button onclick="openAddProgress('${c.id}')">加註進度</button>
-    <button onclick="takeOver('${c.id}')">${c.owner === state.user.displayName ? '已是我' : '接手'}</button>
+    <button class="${announce ? 'announce-btn-active' : ''}" onclick="toggleAnnounce('${c.id}')">${announce ? '🔔 已標宣導' : '🔔 標為宣導'}</button>
     ${c.cat === 'complaint' && (c.tier === 1 || c.tier === '1') ? `<button class="danger" onclick="escalateTier('${c.id}')">升 Tier 2</button>` : ''}
     ${c.cat === 'complaint' && (c.tier === 2 || c.tier === '2') ? `<button class="danger" onclick="convertToEvent('${c.id}')">轉重大異常</button>` : ''}
     <button class="${ready ? 'primary' : ''}" onclick="submitForApproval('${c.id}')">送批准</button>
@@ -1505,8 +1758,17 @@ async function archiveCase(caseId) {
     : `將「${c.title}」歸檔?\n\n• 案件會從清單隱藏\n• 進度紀錄、附件保留在資料表\n• 隨時可在「已歸檔」分頁找到並還原`;
   if (!confirm(msg)) return;
   const r = await api('archiveCase', { caseId });
-  if (r && r.ok) { toast('已歸檔'); refreshAll(); }
-  else toast(r ? r.error : '歸檔失敗');
+  if (!r) { toast('歸檔失敗:無回應'); return; }
+  if (r.ok) {
+    toast('已歸檔');
+    // 立即從前端清掉,避免使用者覺得沒反應
+    state.cases = state.cases.filter(x => x.id !== caseId);
+    renderAll();
+    // 然後再從後端重新拉一次確認
+    setTimeout(() => refreshAll(), 500);
+  } else {
+    toast('歸檔失敗:' + (r.error || '未知錯誤'));
+  }
 }
 
 async function restoreCase(caseId) {
@@ -2015,10 +2277,22 @@ function genHandover() {
   // ----- 純文字版本(用於複製) -----
   let txt = `急診 Leader 交班摘要\n交班人:${me}\n時間:${now}\n${'='.repeat(40)}\n\n`;
 
+  // 🔔 交班宣導(排第一,最重要)
+  const announceItems = state.cases.filter(x =>
+    x.flags && x.flags.announce &&
+    String(x.deleted || '') !== 'yes' &&
+    x.state !== 'closed'
+  );
+  if (announceItems.length) {
+    txt += `🔔 交班宣導(${announceItems.length} 件,需口頭講)\n`;
+    announceItems.forEach(c => txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title}\n`);
+    txt += '\n';
+  }
+
   const pending = state.cases.filter(x => x.state === 'pending_approval');
   if (pending.length) {
     txt += `🔶 待批准封緘 (${pending.length} 件)\n`;
-    pending.forEach(c => txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title} — ${c.owner}\n`);
+    pending.forEach(c => txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title} — ${c.waitingFor||"處理中"}\n`);
     txt += '\n';
   }
 
@@ -2034,7 +2308,7 @@ function genHandover() {
       if (c.flags && c.flags.lawsuitRisk) tags.push('醫糾');
       if (c.flags && c.flags.supervisorInvolved) tags.push('長官');
       if (c.tier === 2 || c.tier === '2') tags.push('Tier2');
-      txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title}${tags.length?` 〔${tags.join(',')}〕`:''} — ${c.owner}\n`;
+      txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title}${tags.length?` 〔${tags.join(',')}〕`:''} — ${c.waitingFor||"處理中"}\n`;
       const lastP = c.progress && c.progress[c.progress.length-1];
       if (lastP) txt += `    最新進度:${lastP.text}\n`;
     });
@@ -2053,7 +2327,7 @@ function genHandover() {
     );
     if (!open.length) return;
     txt += `▸ ${cat.label} (${open.length} 件)\n`;
-    open.forEach(c => txt += `  • ${c.title} — ${c.owner}\n`);
+    open.forEach(c => txt += `  • ${c.title} — ${c.waitingFor||"處理中"}\n`);
     txt += '\n';
   });
 
@@ -2063,6 +2337,19 @@ function genHandover() {
     <div><span class="hd-k">時間</span><strong>${escapeHtml(now)}</strong></div>
   </div>`;
 
+  // 🔔 宣導事項(排最頂)
+  if (announceItems.length) {
+    html += `<div class="hd-section hd-announce">
+      <div class="hd-h">🔔 交班宣導(口頭講) <span class="hd-count">${announceItems.length}</span></div>
+      ${announceItems.map(c => `
+        <div class="hd-row hd-clickable" onclick="jumpToCase('${c.cat}','${c.id}')">
+          <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
+          <span class="hd-title">${escapeHtml(c.title)}</span>
+          <span class="hd-status">${escapeHtml(c.waitingFor || "處理中")}</span>
+        </div>`).join('')}
+    </div>`;
+  }
+
   if (pending.length) {
     html += `<div class="hd-section hd-pending">
       <div class="hd-h">🔶 待批准封緘 <span class="hd-count">${pending.length}</span></div>
@@ -2070,7 +2357,7 @@ function genHandover() {
         <div class="hd-row hd-clickable" onclick="jumpToCase('${c.cat}','${c.id}')">
           <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
           <span class="hd-title">${escapeHtml(c.title)}</span>
-          <span class="hd-owner">${escapeHtml(c.owner)}</span>
+          <span class="hd-status">${escapeHtml(c.waitingFor || "處理中")}</span>
         </div>`).join('')}
     </div>`;
   }
@@ -2089,7 +2376,7 @@ function genHandover() {
             <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
             <span class="hd-title">${escapeHtml(c.title)}</span>
             ${tags.map(t => `<span class="hd-tag">${t}</span>`).join('')}
-            <span class="hd-owner">${escapeHtml(c.owner)}</span>
+            <span class="hd-status">${escapeHtml(c.waitingFor || "處理中")}</span>
           </div>
           ${lastP ? `<div class="hd-progress">▸ ${escapeHtml(lastP.text)}</div>` : ''}
         </div>`;
@@ -2115,7 +2402,7 @@ function genHandover() {
       <div class="hd-cat-h">${cat.label} <span class="hd-count-sm">${open.length} 件</span></div>
       ${open.map(c => `<div class="hd-row hd-clickable" onclick="jumpToCase('${c.cat}','${c.id}')">
         <span class="hd-title">${escapeHtml(c.title)}</span>
-        <span class="hd-owner">${escapeHtml(c.owner)}</span>
+        <span class="hd-status">${escapeHtml(c.waitingFor || "處理中")}</span>
       </div>`).join('')}
     </div>`;
   });

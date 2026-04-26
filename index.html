@@ -214,6 +214,16 @@
 
   .loading { text-align: center; padding: 40px; color: var(--text2); font-size: 15px; }
 
+  /* 員工健康狀況(紫色系,跟病人摘要的藍色區分) */
+  .staff-info { margin-top: 12px; padding: 12px 14px; background: linear-gradient(180deg, #f6f0fa 0%, #ede4f5 100%); border-left: 3px solid #7d3aa8; border-radius: 8px; }
+  .si-h { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; color: #5e2885; margin-bottom: 8px; }
+  .si-edit { font-size: 12px; padding: 3px 10px; background: var(--bg2); }
+
+  /* 次要區塊(預設摺疊的「+ 加入」按鈕) */
+  .info-secondary { margin-top: 10px; }
+  .info-add-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 5px 12px; background: transparent; color: var(--text2); border: 1px dashed var(--border2); border-radius: 999px; }
+  .info-add-btn:hover { background: var(--accent-bg); color: var(--accent-d); border-color: var(--accent); border-style: solid; }
+
   /* 帳號管理 */
   .user-list { display: flex; flex-direction: column; gap: 8px; }
   .user-row { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -599,6 +609,7 @@ function cardHTML(c) {
     <div class="badges-row">${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
     <div class="card-body">${escapeHtml(c.detail)}</div>
     ${patientInfoHTML(c)}
+    ${staffInfoHTML(c)}
     ${timelineHTML(c)}
     ${checklistHTML(c)}
     ${attachmentsHTML(c)}
@@ -611,15 +622,43 @@ function cardHTML(c) {
 }
 
 // ----- 病人摘要(去識別化) -----
-const PATIENT_CATS = ['event', 'complaint', 'trauma', 'vip'];
+// ----- 病人摘要與員工摘要的類別配置 -----
+// primary = 預設展開(主要); secondary = 預設摺疊(備用,點擊加入)
+const PATIENT_PRIMARY_CATS  = ['event', 'complaint', 'trauma', 'vip'];
+const PATIENT_SECONDARY_CATS = ['leave', 'clinical'];
+const STAFF_PRIMARY_CATS     = ['leave'];
+const STAFF_SECONDARY_CATS   = ['event', 'complaint', 'clinical'];
+
+function patientInfoMode(catId) {
+  if (PATIENT_PRIMARY_CATS.indexOf(catId) >= 0)  return 'primary';
+  if (PATIENT_SECONDARY_CATS.indexOf(catId) >= 0) return 'secondary';
+  return null;
+}
+function staffInfoMode(catId) {
+  if (STAFF_PRIMARY_CATS.indexOf(catId) >= 0)  return 'primary';
+  if (STAFF_SECONDARY_CATS.indexOf(catId) >= 0) return 'secondary';
+  return null;
+}
 
 function patientInfoHTML(c) {
-  if (PATIENT_CATS.indexOf(c.cat) < 0) return '';
+  const mode = patientInfoMode(c.cat);
+  if (!mode) return '';
   const pi = c.patientInfo || {};
   const recordNo = c.recordNo || '';
   const hasData = pi.bed || pi.demographic || pi.vitalSigns || pi.chiefComplaint ||
                   pi.mobility || pi.companion || pi.transferStatus || pi.pmh ||
                   pi.travelHx || pi.dx || pi.management || pi.timing || recordNo;
+
+  // 次要 + 沒資料 → 顯示「+ 加入」按鈕
+  if (mode === 'secondary' && !hasData) {
+    if (c.state === 'closed') return '';
+    return `<div class="info-secondary">
+      <button class="info-add-btn" onclick="openPatientInfo('${c.id}')">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        加入病人資訊
+      </button>
+    </div>`;
+  }
 
   if (!hasData && c.state === 'closed') return '';
 
@@ -659,6 +698,50 @@ function patientInfoHTML(c) {
           </div>` : ''}
       </div>
     ` : `<div class="pi-empty">尚未填寫,點「編輯」新增。請勿輸入完整姓名或可識別資訊。</div>`}
+  </div>`;
+}
+
+// ----- 員工健康狀況區塊 -----
+function staffInfoHTML(c) {
+  const mode = staffInfoMode(c.cat);
+  if (!mode) return '';
+  const si = c.staffInfo || {};
+  const hasData = si.empNo || si.dept || si.kind || si.brief || si.followUp || si.expectedReturn;
+
+  if (mode === 'secondary' && !hasData) {
+    if (c.state === 'closed') return '';
+    return `<div class="info-secondary">
+      <button class="info-add-btn" onclick="openStaffInfo('${c.id}')">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        加入員工健康狀況
+      </button>
+    </div>`;
+  }
+
+  if (!hasData && c.state === 'closed') return '';
+
+  const fields = [
+    ['員編',       si.empNo || ''],
+    ['單位',       si.dept || ''],
+    ['狀況類型',   si.kind || ''],
+    ['簡述',       si.brief || ''],
+    ['後續處置',   si.followUp || ''],
+    ['預估復工日', si.expectedReturn || ''],
+  ];
+
+  const editable = c.state !== 'closed';
+
+  return `<div class="staff-info">
+    <div class="si-h">員工健康狀況
+      ${editable ? `<button class="si-edit" onclick="openStaffInfo('${c.id}')">編輯</button>` : ''}
+    </div>
+    ${hasData ? `
+      <div class="pi-grid">
+        ${fields.filter(([_,v]) => v).map(([k,v]) => `
+          <div class="pi-row"><span class="pi-k">${k}</span><span class="pi-v">${escapeHtml(v)}</span></div>
+        `).join('')}
+      </div>
+    ` : `<div class="pi-empty">尚未填寫,點「編輯」新增。</div>`}
   </div>`;
 }
 
@@ -976,6 +1059,53 @@ async function parseTriage(caseId) {
   // 解析完清空原文(降低殘留風險)
   document.getElementById('m-pi-raw').value = '';
   toast('解析完成,請檢查內容');
+}
+
+// ====== 員工健康狀況 modal ======
+function openStaffInfo(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const si = c.staffInfo || {};
+  showModal('編輯員工健康狀況', `
+    <div style="background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:6px;font-size:12px;margin-bottom:10px;line-height:1.5;">
+      ⚠️ 簡述欄位請勿寫到完整診斷,以「上呼吸道感染」「右手食指針扎」這種程度即可
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><label>員編</label><input id="m-si-emp" value="${escapeHtml(si.empNo||'')}" placeholder="例:11304"></div>
+      <div><label>單位</label><input id="m-si-dept" value="${escapeHtml(si.dept||'')}" placeholder="ED nurse / EMT"></div>
+    </div>
+    <label>狀況類型</label>
+    <select id="m-si-kind">
+      <option value="">--請選擇--</option>
+      <option ${si.kind==='病假'?'selected':''}>病假</option>
+      <option ${si.kind==='事假'?'selected':''}>事假</option>
+      <option ${si.kind==='工傷'?'selected':''}>工傷</option>
+      <option ${si.kind==='針扎'?'selected':''}>針扎</option>
+      <option ${si.kind==='職場暴露'?'selected':''}>職場暴露</option>
+      <option ${si.kind==='疫情'?'selected':''}>疫情(隔離/居檢)</option>
+      <option ${si.kind==='恫德'?'selected':''}>恫德事件</option>
+      <option ${si.kind==='意外'?'selected':''}>意外</option>
+      <option ${si.kind==='其他'?'selected':''}>其他</option>
+    </select>
+    <label>簡述</label>
+    <input id="m-si-brief" value="${escapeHtml(si.brief||'')}" placeholder="例:上呼吸道感染、右食指針扎源自床#3">
+    <label>後續處置</label>
+    <input id="m-si-fu" value="${escapeHtml(si.followUp||'')}" placeholder="代班、工傷申請、職護追蹤、HBV 抗體檢查">
+    <label>預估復工日</label>
+    <input id="m-si-ret" value="${escapeHtml(si.expectedReturn||'')}" placeholder="例:2026-04-28">
+  `, async () => {
+    const staffInfo = {
+      empNo:          document.getElementById('m-si-emp').value.trim(),
+      dept:           document.getElementById('m-si-dept').value.trim(),
+      kind:           document.getElementById('m-si-kind').value.trim(),
+      brief:          document.getElementById('m-si-brief').value.trim(),
+      followUp:       document.getElementById('m-si-fu').value.trim(),
+      expectedReturn: document.getElementById('m-si-ret').value.trim(),
+    };
+    const r = await api('updateStaffInfo', { caseId, staffInfo });
+    if (r && r.ok) { refreshAll(); return true; }
+    toast(r ? r.error : '失敗'); return false;
+  });
 }
 
 // ====== 上傳附件 ======

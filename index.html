@@ -1115,15 +1115,35 @@ function openPatientInfo(caseId) {
     <div style="background:#e6f0fb;border:1px solid #b3d4f0;border-radius:6px;padding:10px;margin-bottom:12px;">
       <div style="font-size: 20px;font-weight:600;color:var(--blue-text);margin-bottom:6px;">🤖 智慧解析</div>
       <div style="font-size: 18px;color:var(--text2);margin-bottom:8px;line-height:1.5;">
-        從 NIS 複製檢傷紀錄文字 → 貼到下方 → 點解析 → AI 自動填欄位<br>
-        <strong style="color:var(--red-text);">貼上前請先刪除姓名、身分證號、病歷號等個資</strong>
+        AI 抽取檢傷紀錄資訊 → 自動填入下方欄位<br>
+        <strong style="color:var(--red-text);">⚠️ 處理前請先遮蔽姓名、ID、病歷號(用手指/紙片擋)</strong>
       </div>
-      <textarea id="m-pi-raw" placeholder="貼上去識別化的檢傷紀錄文字..." style="min-height:80px;font-size: 18px;"></textarea>
+
+      <!-- Tab 切換 -->
+      <div style="display:flex;gap:4px;margin-bottom:8px;">
+        <button id="m-pi-tab-text" class="primary" onclick="switchParseMode('text')" style="flex:1;font-size:17px;">📝 貼文字</button>
+        <button id="m-pi-tab-image" onclick="switchParseMode('image')" style="flex:1;font-size:17px;">📷 拍照 / 選圖片</button>
+      </div>
+
+      <!-- 文字模式 -->
+      <div id="m-pi-mode-text">
+        <textarea id="m-pi-raw" placeholder="貼上去識別化的檢傷紀錄文字..." style="min-height:80px;font-size: 18px;"></textarea>
+      </div>
+
+      <!-- 圖片模式 -->
+      <div id="m-pi-mode-image" style="display:none;">
+        <input type="file" id="m-pi-image" accept="image/*" capture="environment" style="font-size:17px;">
+        <div id="m-pi-image-preview" style="margin-top:8px;"></div>
+        <div style="font-size:14px;color:var(--text2);margin-top:6px;line-height:1.5;">
+          系統不儲存圖片,僅在解析當下傳給 Gemini AI,結果回傳後立即釋放
+        </div>
+      </div>
+
       <div style="display:flex;gap:6px;margin-top:6px;">
         <button onclick="parseTriage('${caseId}')" style="flex:1;font-size: 18px;">解析並填入欄位</button>
-        <button onclick="document.getElementById('m-pi-raw').value=''" style="font-size: 18px;">清空</button>
+        <button onclick="clearParseInputs()" style="font-size: 18px;">清空</button>
       </div>
-      <div id="m-pi-parsing" style="font-size: 18px;color:var(--text2);margin-top:6px;display:none;">解析中...</div>
+      <div id="m-pi-parsing" style="font-size: 18px;color:var(--text2);margin-top:6px;display:none;">解析中,請稍候...</div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -1174,12 +1194,55 @@ function openPatientInfo(caseId) {
   });
 }
 
+// 解析模式狀態
+let _parseMode = 'text';
+
+function switchParseMode(mode) {
+  _parseMode = mode;
+  document.getElementById('m-pi-mode-text').style.display = mode === 'text' ? 'block' : 'none';
+  document.getElementById('m-pi-mode-image').style.display = mode === 'image' ? 'block' : 'none';
+  document.getElementById('m-pi-tab-text').classList.toggle('primary', mode === 'text');
+  document.getElementById('m-pi-tab-image').classList.toggle('primary', mode === 'image');
+  // 切換時順便綁圖片預覽事件
+  if (mode === 'image') {
+    setTimeout(() => {
+      const fi = document.getElementById('m-pi-image');
+      if (!fi || fi._bound) return;
+      fi._bound = true;
+      fi.addEventListener('change', () => {
+        const f = fi.files[0];
+        const prev = document.getElementById('m-pi-image-preview');
+        if (!f) { prev.innerHTML = ''; return; }
+        if (f.type.startsWith('image/')) {
+          const url = URL.createObjectURL(f);
+          prev.innerHTML = `<img src="${url}" style="max-width:100%;max-height:200px;border-radius:6px;">`;
+        }
+      });
+    }, 50);
+  }
+}
+
+function clearParseInputs() {
+  const ta = document.getElementById('m-pi-raw');
+  if (ta) ta.value = '';
+  const fi = document.getElementById('m-pi-image');
+  if (fi) fi.value = '';
+  const prev = document.getElementById('m-pi-image-preview');
+  if (prev) prev.innerHTML = '';
+}
+
 async function parseTriage(caseId) {
+  if (_parseMode === 'image') {
+    return await parseTriageImage(caseId);
+  }
+  return await parseTriageText(caseId);
+}
+
+async function parseTriageText(caseId) {
   const text = document.getElementById('m-pi-raw').value.trim();
   if (!text) { toast('請先貼上檢傷紀錄文字'); return; }
   if (text.length > 8000) { toast('文字過長,請精簡'); return; }
 
-  // 提醒去識別化
   if (!confirm('確認:你已從文字中刪除「姓名、身分證號、病歷號」等個資?\n\n貼上的原文不會被儲存,只會用於這次 AI 解析。')) return;
 
   document.getElementById('m-pi-parsing').style.display = 'block';
@@ -1187,9 +1250,90 @@ async function parseTriage(caseId) {
   document.getElementById('m-pi-parsing').style.display = 'none';
 
   if (!r || !r.ok) { toast(r ? r.error : '解析失敗'); return; }
+  applyParsedFields(r.parsed || {});
+  document.getElementById('m-pi-raw').value = '';
+  toast('解析完成,請檢查內容');
+}
 
-  const p = r.parsed || {};
-  // 把結果填入欄位(只填空欄位,不覆蓋已有的內容)
+async function parseTriageImage(caseId) {
+  const fi = document.getElementById('m-pi-image');
+  if (!fi || !fi.files || !fi.files[0]) { toast('請先選擇或拍攝圖片'); return; }
+  const file = fi.files[0];
+
+  if (!confirm('確認:照片中的姓名、身分證號、病歷號已遮蔽?\n\n圖片不會被儲存到系統,僅在解析當下傳給 Gemini AI 處理,結果回傳後立即釋放。')) return;
+
+  document.getElementById('m-pi-parsing').style.display = 'block';
+  document.getElementById('m-pi-parsing').textContent = '壓縮並解析中,需 5–15 秒...';
+
+  try {
+    // 自動壓縮(長邊縮到 1600px,JPEG 85%),確保穩定上傳
+    const compressed = await compressImage(file, 1600, 0.85);
+    const fileBase64 = await blobToBase64(compressed);
+
+    if (fileBase64.length > 7000000) {
+      document.getElementById('m-pi-parsing').style.display = 'none';
+      toast('圖片仍過大,請拍清楚一點再縮小範圍');
+      return;
+    }
+
+    const r = await api('parseTriage', {
+      caseId,
+      imageBase64: fileBase64,
+      imageMimeType: 'image/jpeg',
+    });
+    document.getElementById('m-pi-parsing').style.display = 'none';
+    document.getElementById('m-pi-parsing').textContent = '解析中,請稍候...';
+
+    if (!r || !r.ok) { toast(r ? r.error : '解析失敗'); return; }
+    applyParsedFields(r.parsed || {});
+
+    // 立即釋放圖片(降低殘留風險)
+    fi.value = '';
+    document.getElementById('m-pi-image-preview').innerHTML = '';
+    toast('解析完成,圖片已釋放,請檢查內容');
+  } catch (e) {
+    document.getElementById('m-pi-parsing').style.display = 'none';
+    toast('解析失敗:' + e.message);
+  }
+}
+
+// 圖片壓縮(用 Canvas 縮小 + 重新編 JPEG)
+function compressImage(file, maxSize, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height) {
+        if (width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; }
+      } else {
+        if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url);
+        if (!blob) return reject(new Error('壓縮失敗'));
+        resolve(blob);
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('讀圖失敗')); };
+    img.src = url;
+  });
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function applyParsedFields(p) {
   function setIfEmpty(id, val) {
     const el = document.getElementById(id);
     if (el && val && !el.value.trim()) el.value = val;
@@ -1206,10 +1350,6 @@ async function parseTriage(caseId) {
   setIfEmpty('m-pi-dx',     p.dx);
   setIfEmpty('m-pi-mgmt',   p.management);
   setIfEmpty('m-pi-timing', p.timing);
-
-  // 解析完清空原文(降低殘留風險)
-  document.getElementById('m-pi-raw').value = '';
-  toast('解析完成,請檢查內容');
 }
 
 // ====== 員工健康狀況 modal ======

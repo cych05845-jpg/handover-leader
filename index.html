@@ -143,6 +143,32 @@
   .toast.show { opacity: 1; }
 
   .loading { text-align: center; padding: 40px; color: var(--text2); }
+
+  /* 病人摘要 */
+  .patient-info { margin-top: 10px; padding: 10px 12px; background: #f0f6fc; border-left: 3px solid var(--blue-text); border-radius: 4px; }
+  .pi-h { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: var(--blue-text); margin-bottom: 6px; }
+  .pi-edit { font-size: 11px; padding: 2px 8px; background: #fff; }
+  .pi-grid { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  .pi-row { display: flex; gap: 8px; line-height: 1.5; }
+  .pi-k { color: var(--text2); flex: 0 0 70px; }
+  .pi-v { flex: 1; }
+  .pi-rec { background: #fff; padding: 1px 6px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 12px; }
+  .pi-copy { font-size: 10px; padding: 1px 6px; margin-left: 4px; }
+  .pi-hint { font-size: 11px; color: var(--text3); margin-left: 4px; }
+  .pi-empty { font-size: 12px; color: var(--text3); padding: 4px 0; }
+
+  /* 附件區 */
+  .attach { margin-top: 10px; padding: 10px 12px; background: var(--bg); border-radius: 6px; }
+  .att-h { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 8px; }
+  .att-add { font-size: 11px; padding: 2px 8px; background: #fff; }
+  .att-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+  .att-item { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 4px; position: relative; }
+  .att-item img { width: 100%; height: 90px; object-fit: cover; border-radius: 4px; display: block; }
+  .att-file { display: block; padding: 12px 4px; font-size: 12px; text-align: center; text-decoration: none; color: var(--text); word-break: break-all; }
+  .att-meta { font-size: 10px; color: var(--text2); margin-top: 4px; line-height: 1.3; word-break: break-all; }
+  .att-by { color: var(--text3); }
+  .att-del { position: absolute; top: 2px; right: 2px; font-size: 10px; padding: 1px 5px; background: rgba(255,255,255,0.9); border: 1px solid var(--border); }
+  .att-empty { font-size: 12px; color: var(--text3); padding: 4px 0; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -458,14 +484,97 @@ function cardHTML(c) {
     </div>
     <div class="badges-row">${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
     <div class="card-body">${escapeHtml(c.detail)}</div>
+    ${patientInfoHTML(c)}
     ${timelineHTML(c)}
     ${checklistHTML(c)}
+    ${attachmentsHTML(c)}
     ${progressHTML(c.progress)}
     ${c.state === 'closed'
       ? `<div class="card-meta" style="margin-top:8px;">已封緘 ${escapeHtml(c.closedAt)} · 批准:${escapeHtml(c.closedBy)}</div>`
       : actionsHTML(c)}
     <div class="card-meta" style="margin-top:6px;">負責人:<strong>${escapeHtml(c.owner)}</strong></div>
   </div>`;
+}
+
+// ----- 病人摘要(去識別化) -----
+const PATIENT_CATS = ['event', 'complaint', 'trauma', 'vip'];
+
+function patientInfoHTML(c) {
+  if (PATIENT_CATS.indexOf(c.cat) < 0) return '';
+  const pi = c.patientInfo || {};
+  const recordNo = c.recordNo || '';
+  const hasData = pi.bed || pi.demographic || pi.dx || pi.status || pi.timing || recordNo;
+
+  if (!hasData && c.state === 'closed') return '';
+
+  const fields = [
+    ['床號',      pi.bed || ''],
+    ['性別/年齡', pi.demographic || ''],
+    ['主訴/Dx',   pi.dx || ''],
+    ['目前狀況', pi.status || ''],
+    ['關鍵時序', pi.timing || ''],
+  ];
+
+  const editable = c.state !== 'closed';
+
+  return `<div class="patient-info">
+    <div class="pi-h">病人摘要(去識別化)
+      ${editable ? `<button class="pi-edit" onclick="openPatientInfo('${c.id}')">編輯</button>` : ''}
+    </div>
+    ${hasData ? `
+      <div class="pi-grid">
+        ${fields.filter(([_,v]) => v).map(([k,v]) => `
+          <div class="pi-row"><span class="pi-k">${k}</span><span class="pi-v">${escapeHtml(v)}</span></div>
+        `).join('')}
+        ${recordNo ? `
+          <div class="pi-row">
+            <span class="pi-k">NIS 病歷號</span>
+            <span class="pi-v"><code class="pi-rec">${escapeHtml(recordNo)}</code>
+              <button class="pi-copy" onclick="copyText('${escapeHtml(recordNo)}')">複製</button>
+              <span class="pi-hint">詳情查 NIS</span>
+            </span>
+          </div>` : ''}
+      </div>
+    ` : `<div class="pi-empty">尚未填寫,點「編輯」新增。請勿輸入完整姓名或可識別資訊。</div>`}
+  </div>`;
+}
+
+// ----- 附件區 -----
+const ATTACH_CATS = ['repair', 'event', 'clinical'];
+
+function attachmentsHTML(c) {
+  if (ATTACH_CATS.indexOf(c.cat) < 0) return '';
+  const list = c.attachments || [];
+  const editable = c.state !== 'closed';
+
+  return `<div class="attach">
+    <div class="att-h">📎 設備/現場照 (${list.length})
+      ${editable ? `<button class="att-add" onclick="openUpload('${c.id}')">+ 上傳</button>` : ''}
+    </div>
+    ${list.length ? `
+      <div class="att-grid">
+        ${list.map(a => attachItemHTML(c.id, a, editable)).join('')}
+      </div>
+    ` : `<div class="att-empty">無附件。⚠️ 請勿上傳含病人姓名、病歷號之影像</div>`}
+  </div>`;
+}
+
+function attachItemHTML(caseId, a, editable) {
+  const isImage = a.mimeType && a.mimeType.startsWith('image/');
+  const thumbUrl = `https://drive.google.com/thumbnail?id=${a.id}&sz=w200`;
+  const viewUrl  = `https://drive.google.com/file/d/${a.id}/view`;
+  return `<div class="att-item">
+    ${isImage
+      ? `<a href="${viewUrl}" target="_blank"><img src="${thumbUrl}" loading="lazy" alt="${escapeHtml(a.name)}"></a>`
+      : `<a href="${viewUrl}" target="_blank" class="att-file">📄 ${escapeHtml(a.name)}</a>`
+    }
+    <div class="att-meta">${escapeHtml(a.name)}<br><span class="att-by">${escapeHtml(a.uploadedBy)} · ${escapeHtml(String(a.uploadedAt).split(' ')[1] || a.uploadedAt)}</span></div>
+    ${editable ? `<button class="att-del" onclick="deleteAttachment('${caseId}','${a.id}')">刪除</button>` : ''}
+  </div>`;
+}
+
+function copyText(t) {
+  navigator.clipboard.writeText(t).then(() => toast('已複製:' + t)).catch(() => toast('複製失敗'));
 }
 
 function checklistHTML(c) {
@@ -625,6 +734,109 @@ async function deleteNote(id) {
   if (!confirm('刪除此守則?')) return;
   const r = await api('deleteNote', { id });
   if (r && r.ok) refreshAll();
+}
+
+// ====== 病人摘要 modal ======
+function openPatientInfo(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const pi = c.patientInfo || {};
+  showModal('編輯病人摘要(去識別化)', `
+    <div style="background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:6px;font-size:12px;margin-bottom:10px;">
+      ⚠️ 請勿輸入完整姓名、身分證號、可識別影像。床號 + 年齡性別足以識別,完整資料請查 NIS。
+    </div>
+    <label>床號</label>
+    <input id="m-pi-bed" value="${escapeHtml(pi.bed||'')}" placeholder="例:急救1、留觀7">
+    <label>性別/年齡</label>
+    <input id="m-pi-demo" value="${escapeHtml(pi.demographic||'')}" placeholder="例:M/65、F/28w">
+    <label>主訴 / 診斷</label>
+    <input id="m-pi-dx" value="${escapeHtml(pi.dx||'')}" placeholder="例:OHCA → ROSC,疑 STEMI">
+    <label>目前狀況</label>
+    <input id="m-pi-status" value="${escapeHtml(pi.status||'')}" placeholder="例:MAP 75,等 ICU 床">
+    <label>關鍵時序</label>
+    <input id="m-pi-timing" value="${escapeHtml(pi.timing||'')}" placeholder="例:抵院 14:32 / ROSC 14:50 / ECMO 15:08">
+    <label>NIS 病歷號(僅號碼)</label>
+    <input id="m-pi-rec" value="${escapeHtml(c.recordNo||'')}" placeholder="例:1234567">
+  `, async () => {
+    const patientInfo = {
+      bed:         document.getElementById('m-pi-bed').value.trim(),
+      demographic: document.getElementById('m-pi-demo').value.trim(),
+      dx:          document.getElementById('m-pi-dx').value.trim(),
+      status:      document.getElementById('m-pi-status').value.trim(),
+      timing:      document.getElementById('m-pi-timing').value.trim(),
+    };
+    const recordNo = document.getElementById('m-pi-rec').value.trim();
+    const r = await api('updatePatientInfo', { caseId, patientInfo, recordNo });
+    if (r && r.ok) { refreshAll(); return true; }
+    toast(r ? r.error : '失敗'); return false;
+  });
+}
+
+// ====== 上傳附件 ======
+function openUpload(caseId) {
+  showModal('上傳設備/現場照', `
+    <div style="background:var(--red-bg);color:var(--red-text);padding:10px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;line-height:1.6;">
+      ⚠️ <strong>嚴禁上傳含病人資料之影像</strong><br>
+      • 不可:檢傷紀錄、心電圖、影像報告、病歷文件、身分證件<br>
+      • 可以:故障設備、現場狀況、無人名之 SOP / 流程
+    </div>
+    <label>選擇圖片或檔案</label>
+    <input type="file" id="m-up-file" accept="image/*,application/pdf">
+    <label>備註(可選)</label>
+    <input id="m-up-note" placeholder="例:急救室 #2 監視器黑屏狀態">
+    <div id="m-up-preview" style="margin-top:10px;"></div>
+  `, async () => {
+    const fileInput = document.getElementById('m-up-file');
+    if (!fileInput.files || !fileInput.files[0]) { toast('請選擇檔案'); return false; }
+    const file = fileInput.files[0];
+    if (file.size > 8 * 1024 * 1024) { toast('檔案大於 8 MB,請壓縮後再上傳'); return false; }
+    const note = document.getElementById('m-up-note').value.trim();
+    toast('上傳中...');
+    const fileBase64 = await fileToBase64(file);
+    const r = await api('uploadAttachment', {
+      caseId, fileName: file.name, mimeType: file.type, fileBase64, note,
+    });
+    if (r && r.ok) { toast('上傳成功'); refreshAll(); return true; }
+    toast(r ? r.error : '上傳失敗'); return false;
+  });
+
+  // 預覽
+  setTimeout(() => {
+    const fi = document.getElementById('m-up-file');
+    if (!fi) return;
+    fi.addEventListener('change', () => {
+      const f = fi.files[0];
+      const prev = document.getElementById('m-up-preview');
+      if (!f) { prev.innerHTML = ''; return; }
+      if (f.type.startsWith('image/')) {
+        const url = URL.createObjectURL(f);
+        prev.innerHTML = `<img src="${url}" style="max-width:100%;max-height:200px;border-radius:6px;">`;
+      } else {
+        prev.innerHTML = `<div style="font-size:13px;color:var(--text2);">📄 ${escapeHtml(f.name)} (${(f.size/1024).toFixed(0)} KB)</div>`;
+      }
+    });
+  }, 100);
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      // result is "data:mime;base64,XXXX",取後半
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function deleteAttachment(caseId, attachmentId) {
+  if (!confirm('刪除此附件?(同時會從 Drive 刪除)')) return;
+  const r = await api('deleteAttachment', { caseId, attachmentId });
+  if (r && r.ok) { toast('已刪除'); refreshAll(); }
+  else toast(r ? r.error : '刪除失敗');
 }
 
 // ====== Modals: 加註進度 ======

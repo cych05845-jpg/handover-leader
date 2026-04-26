@@ -138,6 +138,16 @@
   .ck .dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--border2); flex-shrink: 0; transition: all 0.15s; }
   .ck.done .dot { background: var(--green-text); border-color: var(--green-text); position: relative; }
   .ck.done .dot::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .ck.overdue { color: var(--red-text); font-weight: 600; }
+  .ck.overdue .dot { border-color: var(--red-text); animation: ck-pulse 1.6s ease-in-out infinite; }
+  @keyframes ck-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 56, 43, 0.4); } 50% { box-shadow: 0 0 0 4px rgba(192, 56, 43, 0); } }
+  .ck-tag { display: inline-block; background: var(--red-bg); color: var(--red-text); font-size: 18px; padding: 1px 8px; border-radius: 999px; font-weight: 600; margin-left: 4px; }
+  .ck-overdue-banner { background: var(--red-bg); color: var(--red-text); padding: 8px 12px; border-radius: 6px; font-weight: 600; margin-bottom: 8px; border-left: 3px solid var(--red-text); }
+
+  /* 病人離院特殊樣式 */
+  .card.runaway { border-left: 4px solid #b8860b; }
+  .runaway-banner { margin-top: 10px; padding: 10px 14px; background: #fff8e1; color: #5d4407; border-radius: 8px; font-size: 21px; font-weight: 500; border-left: 3px solid #b8860b; }
+  .runaway-banner.runaway-overdue { background: var(--red-bg); color: var(--red-text); border-left-color: var(--red-text); font-weight: 600; }
 
   .time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; padding: 12px; background: var(--bg); border-radius: 8px; font-size: 21px; }
   .tf { display: flex; flex-direction: column; gap: 4px; }
@@ -625,7 +635,8 @@ function renderPane(catId) {
 function cardHTML(c) {
   const stateClass = c.state === 'pending_approval' ? 'pending' : c.state === 'closed' ? 'closed' : '';
   const tierClass = (c.tier === 2 || c.tier === '2') ? 'tier2' : '';
-  return `<div class="card ${stateClass} ${tierClass}">
+  const runawayClass = (c.cat === 'event' && c.subType === '病人離院') ? 'runaway' : '';
+  return `<div class="card ${stateClass} ${tierClass} ${runawayClass}">
     <div class="card-top">
       <div style="flex:1; min-width:0;">
         <div class="card-title">${escapeHtml(c.title)}</div>
@@ -633,7 +644,8 @@ function cardHTML(c) {
       </div>
       <div class="badges">${prioBadge(c.priority)}${stateBadge(c.state)}</div>
     </div>
-    <div class="badges-row">${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
+    <div class="badges-row">${affiliationBadge(c)}${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
+    ${runawayClass ? runawayBanner(c) : ''}
     <div class="card-body">${escapeHtml(c.detail)}</div>
     ${patientInfoHTML(c)}
     ${staffInfoHTML(c)}
@@ -646,6 +658,35 @@ function cardHTML(c) {
       : actionsHTML(c)}
     <div class="card-meta" style="margin-top:6px;">負責人:<strong>${escapeHtml(c.owner)}</strong></div>
   </div>`;
+}
+
+// 歸屬標籤(只請假類別顯示)
+function affiliationBadge(c) {
+  if (c.cat !== 'leave' || !c.affiliation) return '';
+  const map = {
+    internal:   { label: '單位內',         cls: 'b-blue' },
+    other_unit: { label: '其他單位',       cls: 'b-amber' },
+    non_nursing:{ label: '非護理職類',     cls: 'b-gray' },
+  };
+  const a = map[c.affiliation];
+  return a ? `<span class="badge ${a.cls}">${a.label}</span>` : '';
+}
+
+// 病人離院的一週倒數提醒
+function runawayBanner(c) {
+  if (c.state !== 'open') return '';
+  const days = daysSinceCreated(c);
+  if (days >= 7) {
+    return `<div class="runaway-banner runaway-overdue">
+      ⏰ 已建立 ${days} 天,已超過一週門檻 — 請確認 checklist 後送批准結案
+    </div>`;
+  }
+  if (days >= 5) {
+    return `<div class="runaway-banner">
+      ⏳ 已建立 ${days} 天,${7 - days} 天後將自動進入待批准
+    </div>`;
+  }
+  return '';
 }
 
 // ----- 病人摘要(去識別化) -----
@@ -810,16 +851,48 @@ function copyText(t) {
   navigator.clipboard.writeText(t).then(() => toast('已複製:' + t)).catch(() => toast('複製失敗'));
 }
 
+// 計算 case 自建立後過了幾天
+function daysSinceCreated(c) {
+  if (!c.created) return 0;
+  const created = new Date(String(c.created).replace(' ', 'T'));
+  if (isNaN(created)) return 0;
+  return Math.floor((Date.now() - created.getTime()) / 86400000);
+}
+
+// 哪些 checklist 項目要做 7 天逾期警示
+const OVERDUE_RULES = {
+  event: { items: ['pdca', 'tracking'], days: 7 },
+};
+
+function isOverdueItem(c, itemId) {
+  const rule = OVERDUE_RULES[c.cat];
+  if (!rule) return false;
+  if (rule.items.indexOf(itemId) < 0) return false;
+  if (c.state === 'closed') return false;
+  return daysSinceCreated(c) > rule.days;
+}
+
 function checklistHTML(c) {
   if (!c.checklist || !c.checklist.length) return '';
   const disabled = c.state === 'closed';
-  return `<div class="checklist">${
-    c.checklist.map(it => `
-      <div class="ck ${it.done ? 'done' : ''}" ${disabled ? '' : `onclick="toggleCheck('${c.id}','${it.id}')"`}>
+  const days = daysSinceCreated(c);
+  const rule = OVERDUE_RULES[c.cat];
+  const hasAnyOverdue = rule && c.state !== 'closed' &&
+    c.checklist.some(it => rule.items.indexOf(it.id) >= 0 && !it.done && days > rule.days);
+
+  return `<div class="checklist">
+    ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,PDCA / 追蹤單逾期未完成,請盡速催開</div>` : ''}
+    ${c.checklist.map(it => {
+      const overdue = !it.done && isOverdueItem(c, it.id);
+      const cls = ['ck'];
+      if (it.done) cls.push('done');
+      if (overdue) cls.push('overdue');
+      return `<div class="${cls.join(' ')}" ${disabled ? '' : `onclick="toggleCheck('${c.id}','${it.id}')"`}>
         <span class="dot"></span>
-        <span>${escapeHtml(it.label)}${it.note ? ` — <em style="color:var(--text2);font-style:normal;">${escapeHtml(it.note)}</em>` : ''}</span>
-      </div>`).join('')
-  }</div>`;
+        <span>${escapeHtml(it.label)}${overdue ? ` <span class="ck-tag">逾期 ${days - rule.days} 天</span>` : ''}${it.note ? ` — <em style="color:var(--text2);font-style:normal;">${escapeHtml(it.note)}</em>` : ''}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 
 function timelineHTML(c) {
@@ -965,10 +1038,54 @@ async function convertToEvent(caseId) {
   if (r && r.ok) { toast('已轉為重大異常'); switchTab('event'); refreshAll(); }
 }
 
-async function setTraumaTime(caseId, field) {
-  if (!confirm('用「現在時間」記錄到達?')) return;
-  const r = await api('setTraumaTime', { caseId, field });
-  if (r && r.ok) refreshAll();
+function setTraumaTime(caseId, field) {
+  // 預設帶現在時間
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  const todayStr = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  const nowTime = `${p(d.getHours())}:${p(d.getMinutes())}`;
+
+  const fieldLabel = field === 'traumaDr_actual' ? '外傷醫師到場時間' : '社工到場時間';
+
+  showModal(`記錄${fieldLabel}`, `
+    <div style="background:var(--bg);padding:10px 12px;border-radius:6px;font-size:14px;color:var(--text2);margin-bottom:10px;">
+      預設為現在時間,可調整為實際到達時間(例如事後補登)
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <label>日期</label>
+        <input type="date" id="m-tt-date" value="${todayStr}">
+      </div>
+      <div>
+        <label>時間</label>
+        <input type="time" id="m-tt-time" value="${nowTime}" step="60">
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
+      <button onclick="setTraumaQuick('${caseId}','${field}',0)">現在</button>
+      <button onclick="setTraumaQuick('${caseId}','${field}',-5)">5 分鐘前</button>
+      <button onclick="setTraumaQuick('${caseId}','${field}',-10)">10 分鐘前</button>
+      <button onclick="setTraumaQuick('${caseId}','${field}',-30)">30 分鐘前</button>
+      <button onclick="setTraumaQuick('${caseId}','${field}',-60)">1 小時前</button>
+    </div>
+  `, async () => {
+    const date = document.getElementById('m-tt-date').value;
+    const time = document.getElementById('m-tt-time').value;
+    if (!date || !time) { toast('請填日期與時間'); return false; }
+    const r = await api('setTraumaTime', { caseId, field, customTime: `${date} ${time}` });
+    if (r && r.ok) { refreshAll(); return true; }
+    toast(r ? r.error : '失敗'); return false;
+  });
+}
+
+async function setTraumaQuick(caseId, field, minutesAgo) {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() + minutesAgo);
+  const p = n => String(n).padStart(2, '0');
+  const t = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  const r = await api('setTraumaTime', { caseId, field, customTime: t });
+  if (r && r.ok) { closeModal(); refreshAll(); toast('已記錄'); }
+  else toast(r ? r.error : '失敗');
 }
 
 async function deleteNote(id) {
@@ -1401,7 +1518,7 @@ function openAddCase(catId) {
   const subTypeOpts = ({
     repair:    ['醫工', '工務', '建材', '資訊'],
     leave:     ['病假', '事假', '其他'],
-    event:     ['設備異常', '醫糾風險', '給藥錯誤', '跌倒', '其他'],
+    event:     ['設備異常', '醫糾風險', '給藥錯誤', '跌倒', '病人離院', '其他'],
     complaint: ['家屬不滿', '處置爭議', '候診時間', '其他'],
     trauma:    ['無名氏', '重大創傷', '兒虐', '家暴'],
     clinical:  ['流程', 'SOP', '跨科協調', '其他'],
@@ -1410,10 +1527,23 @@ function openAddCase(catId) {
 
   const isTrauma = catId === 'trauma';
   const isComplaint = catId === 'complaint';
+  const isLeave = catId === 'leave';
+  const isEvent = catId === 'event';
 
   showModal(`新增${cat.label}案件`, `
     <label>子類別</label>
-    <select id="m-subType">${subTypeOpts.map(x => `<option>${x}</option>`).join('')}</select>
+    <select id="m-subType" onchange="onSubTypeChange()">${subTypeOpts.map(x => `<option>${x}</option>`).join('')}</select>
+    ${isLeave ? `
+      <label>人員歸屬</label>
+      <select id="m-affiliation">
+        <option value="internal">單位內(急診護理)</option>
+        <option value="other_unit">其他單位(行政時間外掛號)</option>
+        <option value="non_nursing">非護理職類</option>
+      </select>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px;">
+        其他單位 / 非護理職類 → checklist 改為「記錄事件、通報主管、交接後續」
+      </div>
+    ` : ''}
     <label>標題</label>
     <input id="m-title" placeholder="簡短描述">
     <label>補充資訊(地點、單號、時間等)</label>
@@ -1433,9 +1563,18 @@ function openAddCase(catId) {
         <option value="2">Tier 2 醫糾風險</option>
       </select>
     ` : ''}
+    ${isEvent ? `
+      <div id="m-runaway-hint" style="display:none;background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:6px;font-size:13px;margin-top:8px;line-height:1.5;">
+        ℹ️ 病人離院案件:checklist 自動改為「離院流程」, <strong>一週後自動進入待批准狀態</strong>。報警與否由醫師裁決,leader 負責記錄。
+      </div>
+    ` : ''}
     ${isTrauma ? `
-      <label>抵院時間 (留空=現在)</label>
-      <input id="m-arrival" placeholder="YYYY-MM-DD HH:mm">
+      <label>抵院時間</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <input type="date" id="m-arrival-date">
+        <input type="time" id="m-arrival-time" step="60">
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-top:4px;">留空=用「現在時間」記錄</div>
       <label>類型</label>
       <select id="m-traumaType">
         <option value="trauma">重大創傷(外傷醫師 5 分鐘內)</option>
@@ -1451,13 +1590,21 @@ function openAddCase(catId) {
       meta: document.getElementById('m-meta').value.trim(),
       detail: document.getElementById('m-detail').value.trim(),
       priority: document.getElementById('m-priority').value,
-      checklist: defaultChecklist(catId, isComplaint ? Number(document.getElementById('m-tier').value) : null),
     };
     if (!c.title) { toast('請填標題'); return false; }
     if (isComplaint) c.tier = Number(document.getElementById('m-tier').value);
+    if (isLeave) c.affiliation = document.getElementById('m-affiliation').value;
+    // 依子類別動態決定 checklist
+    c.checklist = defaultChecklist(catId, {
+      tier: isComplaint ? Number(document.getElementById('m-tier').value) : null,
+      affiliation: isLeave ? c.affiliation : null,
+      subType: c.subType,
+    });
     if (isTrauma) {
       const tt = document.getElementById('m-traumaType').value;
-      const arr = document.getElementById('m-arrival').value.trim() || nowStr();
+      const dateVal = document.getElementById('m-arrival-date').value;
+      const timeVal = document.getElementById('m-arrival-time').value;
+      const arr = (dateVal && timeVal) ? `${dateVal} ${timeVal}` : nowStr();
       c.timeline = {
         arrival: arr,
         traumaDr_required: (tt === 'trauma' || tt === 'both') ? '5 分鐘內' : '-',
@@ -1476,7 +1623,43 @@ function openAddCase(catId) {
   });
 }
 
-function defaultChecklist(catId, tier) {
+function defaultChecklist(catId, opts) {
+  // 兼容舊呼叫(只傳 tier)
+  if (typeof opts === 'number' || opts === null || opts === undefined) {
+    opts = { tier: opts };
+  }
+  const tier = opts.tier;
+  const affiliation = opts.affiliation;
+  const subType = opts.subType;
+
+  // 請假:依歸屬切換
+  if (catId === 'leave') {
+    if (affiliation === 'other_unit' || affiliation === 'non_nursing') {
+      return [
+        { id: 'documented',  label: '記錄事件',                         done: false },
+        { id: 'notified',    label: '已通報夜護 / 該單位主管',          done: false },
+        { id: 'handover',    label: '已交接給該單位後續處理',           done: false },
+      ];
+    }
+    return [
+      { id: 'reported',  label: '通報並安排代班', done: false },
+      { id: 'paperwork', label: '請假手續完成',   done: false },
+    ];
+  }
+
+  // 異常:病人離院特殊 checklist
+  if (catId === 'event' && subType === '病人離院') {
+    return [
+      { id: 'lastSeen',     label: '已記錄發現時間 / 最後接觸時間',     done: false },
+      { id: 'assessment',   label: '病人狀態評估(意識/管路/風險)',     done: false },
+      { id: 'attending',    label: '已通知主治醫師',                     done: false },
+      { id: 'policeDecide', label: '醫師裁決報警與否',                   done: false },
+      { id: 'family',       label: '家屬聯繫',                           done: false },
+      { id: 'chartRecord',  label: '病歷記錄完成',                       done: false },
+      { id: 'tracking',     label: '追蹤狀態(返院/聯繫上/失聯)',       done: false },
+    ];
+  }
+
   const lists = {
     repair: [
       { id: 'submit',   label: '已開請修單',           done: false },
@@ -1484,16 +1667,12 @@ function defaultChecklist(catId, tier) {
       { id: 'result',   label: '維修完成或報廢確認',   done: false },
       { id: 'purchase', label: '若報廢→購買到貨',     done: false },
     ],
-    leave: [
-      { id: 'reported',  label: '通報並安排代班', done: false },
-      { id: 'returned',  label: '人員回來上班',   done: false },
-      { id: 'paperwork', label: '請假單補簽核',   done: false },
-    ],
     event: [
       { id: 'reported',     label: '班內主管知會',          done: false },
       { id: 'sac_decision', label: '病安 SAC 決策',         done: false },
       { id: 'pdca',         label: 'PDCA 完成',             done: false },
       { id: 'tracking',     label: '事件追蹤單繳交',        done: false },
+      { id: 'notified',     label: '已告知當事人結果',      done: false },
     ],
     complaint: tier === 2 ? [
       { id: 'documented',     label: '已記錄客訴內容',         done: false },
@@ -1524,6 +1703,14 @@ function defaultChecklist(catId, tier) {
     ],
   };
   return lists[catId] || [];
+}
+
+// 子類別變更時的 hint 顯示
+function onSubTypeChange() {
+  const el = document.getElementById('m-subType');
+  if (!el) return;
+  const hint = document.getElementById('m-runaway-hint');
+  if (hint) hint.style.display = el.value === '病人離院' ? 'block' : 'none';
 }
 
 // ====== Modals: 守則新增/編輯 ======

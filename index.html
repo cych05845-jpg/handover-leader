@@ -214,6 +214,12 @@
 
   .loading { text-align: center; padding: 40px; color: var(--text2); font-size: 15px; }
 
+  /* 帳號管理 */
+  .user-list { display: flex; flex-direction: column; gap: 8px; }
+  .user-row { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .user-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .user-actions button { font-size: 12px; padding: 5px 11px; }
+
   /* ======== RWD 手機 ======== */
   @media (max-width: 768px) {
     .layout { flex-direction: column; }
@@ -318,6 +324,8 @@ const CATS = [
   { id: 'clinical',  label: '臨床運作', hasTracking: true },
   { id: 'vip',       label: '交辦/VIP', hasTracking: true },
   { id: 'notes',     label: '守則',     isNotes: true },
+  { id: 'users',     label: '帳號管理', isUsers: true },
+  { id: 'settings',  label: '我的設定', isSettings: true },
 ];
 
 // ====== API ======
@@ -528,6 +536,8 @@ const NAV_ICONS = {
   clinical:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>',
   vip:       '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
   notes:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  users:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  settings:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
 };
 
 function renderTabs() {
@@ -549,6 +559,8 @@ function renderPanes() {
   const cat = CATS.find(x => x.id === catId);
   document.getElementById('panes').innerHTML = `<div id="pane-${catId}"></div>`;
   if (cat.isNotes) renderNotesPane();
+  else if (cat.isUsers) renderUsersPane();
+  else if (cat.isSettings) renderSettingsPane();
   else renderPane(catId);
 }
 
@@ -1031,6 +1043,185 @@ async function deleteAttachment(caseId, attachmentId) {
   const r = await api('deleteAttachment', { caseId, attachmentId });
   if (r && r.ok) { toast('已刪除'); refreshAll(); }
   else toast(r ? r.error : '刪除失敗');
+}
+
+// ====== 帳號管理 ======
+async function renderUsersPane() {
+  const root = document.getElementById('pane-users');
+  root.innerHTML = '<div class="loading">載入中...</div>';
+  const r = await api('listUsers');
+  if (!r || !r.ok) { root.innerHTML = '<div class="empty">載入失敗</div>'; return; }
+
+  const canManage = r.canManage;
+  const users = r.users || [];
+
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div style="font-size:14px;color:var(--text2);">共 ${users.length} 個帳號</div>
+      ${canManage ? `<button class="primary" onclick="openAddUser()">+ 新增帳號</button>` : ''}
+    </div>
+  `;
+
+  if (!canManage) {
+    html += `<div style="background:var(--blue-bg);color:var(--blue-text);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;">您可以查看帳號清單,但只有護理長/副護理長能編輯。如需修改自己的密碼,請至「我的設定」。</div>`;
+  }
+
+  html += `<div class="user-list">`;
+  users.forEach(u => {
+    const roleBadge = u.role === 'approver'
+      ? '<span class="badge b-blue">approver 可批准</span>'
+      : '<span class="badge b-gray">leader</span>';
+    const isMe = u.username === state.user.username;
+    html += `
+      <div class="user-row">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:600;">${escapeHtml(u.displayName)} ${isMe ? '<span style="color:var(--accent);font-size:12px;font-weight:500;">(我)</span>' : ''}</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:2px;">帳號:<code style="background:var(--bg);padding:1px 6px;border-radius:3px;">${escapeHtml(u.username)}</code> · ${roleBadge}</div>
+        </div>
+        ${canManage ? `
+          <div class="user-actions">
+            <button onclick="openEditUser('${escapeHtml(u.username)}')">編輯</button>
+            <button onclick="openResetPwd('${escapeHtml(u.username)}','${escapeHtml(u.displayName)}')">重設密碼</button>
+            ${isMe ? '' : `<button class="danger" onclick="deleteUser('${escapeHtml(u.username)}','${escapeHtml(u.displayName)}')">刪除</button>`}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  });
+  html += `</div>`;
+
+  root.innerHTML = html;
+}
+
+function openAddUser() {
+  showModal('新增帳號', `
+    <label>帳號(員編,登入用)</label>
+    <input id="m-u-name" placeholder="例:05845">
+    <label>初始密碼</label>
+    <input id="m-u-pwd" placeholder="使用者首次登入後可自行修改">
+    <label>顯示名稱</label>
+    <input id="m-u-disp" placeholder="例:翁秀霞">
+    <label>角色</label>
+    <select id="m-u-role">
+      <option value="leader" selected>leader(一般)</option>
+      <option value="approver">approver(可批准封緘)</option>
+    </select>
+  `, async () => {
+    const u = {
+      username:    document.getElementById('m-u-name').value.trim(),
+      password:    document.getElementById('m-u-pwd').value.trim(),
+      displayName: document.getElementById('m-u-disp').value.trim(),
+      role:        document.getElementById('m-u-role').value,
+    };
+    if (!u.username || !u.password || !u.displayName) { toast('請填完整'); return false; }
+    const r = await api('addUser', { user: u });
+    if (r && r.ok) { toast('新增成功'); renderUsersPane(); return true; }
+    toast(r ? r.error : '失敗'); return false;
+  });
+}
+
+async function openEditUser(username) {
+  const r = await api('listUsers');
+  if (!r || !r.ok) return;
+  const u = r.users.find(x => x.username === username);
+  if (!u) return;
+  showModal('編輯帳號', `
+    <label>帳號</label>
+    <input value="${escapeHtml(u.username)}" disabled>
+    <label>顯示名稱</label>
+    <input id="m-u-disp" value="${escapeHtml(u.displayName)}">
+    <label>角色</label>
+    <select id="m-u-role">
+      <option value="leader" ${u.role==='leader'?'selected':''}>leader(一般)</option>
+      <option value="approver" ${u.role==='approver'?'selected':''}>approver(可批准封緘)</option>
+    </select>
+  `, async () => {
+    const r2 = await api('updateUser', {
+      username: u.username,
+      displayName: document.getElementById('m-u-disp').value.trim(),
+      role: document.getElementById('m-u-role').value,
+    });
+    if (r2 && r2.ok) { toast('已更新'); renderUsersPane(); return true; }
+    toast(r2 ? r2.error : '失敗'); return false;
+  });
+}
+
+function openResetPwd(username, displayName) {
+  showModal(`重設密碼 — ${displayName}`, `
+    <div style="background:var(--amber-bg);color:var(--amber-text);padding:8px 10px;border-radius:6px;font-size:12px;margin-bottom:10px;">
+      請告知使用者新密碼,並建議他登入後到「我的設定」自行更改。
+    </div>
+    <label>新密碼</label>
+    <input id="m-rp-pwd" placeholder="輸入新密碼">
+  `, async () => {
+    const newPassword = document.getElementById('m-rp-pwd').value.trim();
+    if (!newPassword) { toast('請輸入新密碼'); return false; }
+    const r = await api('resetPassword', { username, newPassword });
+    if (r && r.ok) { toast('密碼已重設'); return true; }
+    toast(r ? r.error : '失敗'); return false;
+  });
+}
+
+async function deleteUser(username, displayName) {
+  if (!confirm(`確定刪除帳號「${displayName}」?\n\n注意:此帳號的歷史紀錄(progress 中的 who 欄位)不會被刪除,但他將無法再登入。`)) return;
+  const r = await api('deleteUser', { username });
+  if (r && r.ok) { toast('已刪除'); renderUsersPane(); }
+  else toast(r ? r.error : '失敗');
+}
+
+// ====== 我的設定 ======
+function renderSettingsPane() {
+  const u = state.user;
+  document.getElementById('pane-settings').innerHTML = `
+    <div class="card">
+      <div class="card-title">我的帳號</div>
+      <div style="margin-top:12px;font-size:14px;line-height:1.8;">
+        <div>帳號:<code style="background:var(--bg);padding:2px 8px;border-radius:4px;">${escapeHtml(u.username)}</code></div>
+        <div>顯示名稱:<strong>${escapeHtml(u.displayName)}</strong></div>
+        <div>角色:${u.role === 'approver' ? '<span class="badge b-blue">approver 可批准</span>' : '<span class="badge b-gray">leader</span>'}</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="card-title">變更密碼</div>
+      <div style="margin-top:12px;">
+        <label>目前密碼</label>
+        <input type="password" id="s-old">
+        <label>新密碼(至少 4 字元)</label>
+        <input type="password" id="s-new1">
+        <label>再次輸入新密碼</label>
+        <input type="password" id="s-new2">
+        <button class="primary" style="margin-top:14px;" onclick="changeMyPassword()">變更密碼</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="card-title">系統資訊</div>
+      <div style="margin-top:12px;font-size:13px;color:var(--text2);line-height:1.8;">
+        <div>版本:Handover Leader v1.0</div>
+        <div>API:已連線</div>
+        <div>輪詢間隔:30 秒</div>
+      </div>
+    </div>
+  `;
+}
+
+async function changeMyPassword() {
+  const oldPwd = document.getElementById('s-old').value;
+  const new1 = document.getElementById('s-new1').value;
+  const new2 = document.getElementById('s-new2').value;
+  if (!oldPwd || !new1 || !new2) { toast('請填寫所有欄位'); return; }
+  if (new1 !== new2) { toast('兩次新密碼不一致'); return; }
+  if (new1.length < 4) { toast('新密碼至少 4 字元'); return; }
+  if (new1 === oldPwd) { toast('新舊密碼相同'); return; }
+  const r = await api('changeMyPassword', { oldPassword: oldPwd, newPassword: new1 });
+  if (r && r.ok) {
+    toast('密碼已變更,請重新登入');
+    document.getElementById('s-old').value = '';
+    document.getElementById('s-new1').value = '';
+    document.getElementById('s-new2').value = '';
+    setTimeout(() => doLogout(), 1500);
+  } else toast(r ? r.error : '失敗');
 }
 
 // ====== Modals: 加註進度 ======

@@ -197,6 +197,86 @@
   .back-to-handover:hover { background: var(--accent-d); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,166,160,0.5); }
   @keyframes hd-pop { 0% { transform: translateY(-12px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
 
+  /* 搜尋頁 */
+  .search-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 2px solid var(--border); }
+  .search-tab { background: transparent; border: none; padding: 12px 20px; font-size: 21px; font-weight: 600; color: var(--text2); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+  .search-tab:hover { color: var(--text); }
+  .search-tab.active { color: var(--accent-d); border-bottom-color: var(--accent); }
+  .search-form { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+
+  /* AI 結果 */
+  .ai-result { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .ai-summary { background: linear-gradient(180deg, #f0f8fc 0%, #e6f0fb 100%); padding: 18px 22px; border-bottom: 1px solid var(--border); }
+  .ai-section { padding: 18px 22px; border-bottom: 1px solid var(--border); }
+  .ai-section:last-child { border-bottom: none; }
+  .ai-section.ai-recommend { background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%); }
+  .ai-h { font-size: 23px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+  .ai-body { font-size: 21px; line-height: 1.7; color: var(--text); }
+  .ai-list { font-size: 21px; line-height: 1.8; padding-left: 22px; }
+  .ai-list li { margin-bottom: 6px; }
+  .ai-recommend .ai-h { color: var(--green-text); }
+
+  /* ========= 統計分析 ========= */
+  .stats-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+  .stats-range { display: flex; gap: 4px; }
+  .stats-range button { font-size: 18px; padding: 7px 14px; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stats-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
+  .stats-card .sc-label { font-size: 18px; color: var(--text2); font-weight: 500; }
+  .stats-card .sc-num { font-size: 40px; font-weight: 700; line-height: 1.1; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .stats-card .sc-sub { font-size: 16px; color: var(--text3); margin-top: 4px; }
+
+  .stats-section { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 14px; }
+  .stats-section h3 { font-size: 24px; margin-bottom: 12px; color: var(--accent-d); font-weight: 700; }
+
+  .stats-bars { display: flex; flex-direction: column; gap: 8px; }
+  .stats-bar-row { display: flex; align-items: center; gap: 12px; font-size: 21px; }
+  .sb-label { width: 130px; font-weight: 600; flex-shrink: 0; }
+  .sb-bar { flex: 1; height: 24px; background: var(--bg); border-radius: 6px; overflow: hidden; }
+  .sb-fill { height: 100%; background: linear-gradient(90deg, var(--accent) 0%, var(--accent-d) 100%); border-radius: 6px; transition: width 0.4s; }
+  .sb-num { font-weight: 700; min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .stats-list { display: flex; flex-direction: column; gap: 6px; }
+  .sl-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 20px; border-bottom: 1px dashed var(--border); }
+  .sl-row:last-child { border-bottom: none; }
+  .sl-rank { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-bg); color: var(--accent-d); font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .sl-cat { background: var(--bg); padding: 2px 10px; border-radius: 999px; font-size: 16px; color: var(--text2); }
+  .sl-name { flex: 1; }
+  .sl-num { font-weight: 700; color: var(--accent-d); font-variant-numeric: tabular-nums; }
+
+  /* AI 分析 */
+  .ai-loading { background: var(--bg2); border: 2px dashed var(--accent); border-radius: 12px; padding: 32px; text-align: center; font-size: 21px; color: var(--text2); margin-top: 16px; }
+  .loading-spin { font-size: 48px; animation: ai-spin 2s linear infinite; }
+  @keyframes ai-spin { 0%,100% { transform: rotate(-15deg); } 50% { transform: rotate(15deg); } }
+
+  .ai-result { background: linear-gradient(180deg, #f5fbfa 0%, #ffffff 100%); border: 2px solid var(--accent); border-radius: 14px; padding: 20px 24px; margin-top: 20px; }
+  .ai-meta { font-size: 18px; color: var(--text3); margin-bottom: 8px; }
+  .ai-headline { font-size: 28px; font-weight: 700; color: var(--accent-d); margin-bottom: 18px; line-height: 1.5; padding: 12px 16px; background: var(--accent-bg); border-radius: 8px; border-left: 4px solid var(--accent); }
+  .ai-section { margin-bottom: 18px; }
+  .ai-section h4 { font-size: 22px; margin-bottom: 10px; color: var(--text); font-weight: 700; }
+  .ai-section ul { padding-left: 22px; }
+  .ai-section li { font-size: 21px; line-height: 1.7; margin-bottom: 4px; }
+
+  .ai-recurring { background: var(--bg2); border: 1px solid var(--amber-bd); border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
+  .ai-rec-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 21px; }
+  .ai-rec-body { font-size: 19px; color: var(--text2); margin-top: 8px; line-height: 1.6; }
+
+  .ai-section-pdca { background: linear-gradient(180deg, #fff8dc 0%, #fffdf3 100%); border: 1px solid var(--amber-bd); border-radius: 10px; padding: 16px 20px; }
+  .ai-pdca { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px dashed rgba(0,0,0,0.08); }
+  .ai-pdca:last-child { border-bottom: none; }
+  .ai-pdca-num { width: 36px; height: 36px; border-radius: 50%; background: var(--amber-text); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 21px; flex-shrink: 0; }
+  .ai-pdca-body { flex: 1; }
+  .ai-pdca-topic { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .ai-pdca-rationale { font-size: 19px; color: var(--text2); line-height: 1.6; }
+  .ai-pdca-impact { font-size: 19px; color: var(--accent-d); font-weight: 600; margin-top: 4px; }
+
+  .ai-section-concerns { background: var(--red-bg); border: 1px solid var(--red-bd); border-radius: 10px; padding: 12px 18px; }
+  .ai-section-concerns h4 { color: var(--red-text); }
+  .ai-section-concerns li { color: var(--red-text); }
+
+  .ai-disclaimer { font-size: 16px; color: var(--text3); margin-top: 16px; padding: 10px 14px; background: var(--bg); border-radius: 6px; line-height: 1.5; }
+
   /* 病人離院特殊樣式 */
   .card.runaway { border-left: 4px solid #b8860b; }
   .runaway-banner { margin-top: 10px; padding: 10px 14px; background: #fff8e1; color: #5d4407; border-radius: 8px; font-size: 21px; font-weight: 500; border-left: 3px solid #b8860b; }
@@ -442,6 +522,9 @@ const CATS = [
   { id: 'clinical',  label: '臨床運作', hasTracking: true },
   { id: 'vip',       label: '交辦/VIP', hasTracking: true },
   { id: 'announce',  label: '宣導事項', isAnnounce: true },
+  { id: 'search',    label: '搜尋',     isSearch: true },
+  { id: 'stats',     label: '統計分析', isStats: true },
+  { id: 'stats',     label: '統計分析', isStats: true },
   { id: 'notes',     label: '守則',     isNotes: true },
   { id: 'archived',  label: '已歸檔',   isArchived: true },
   { id: 'users',     label: '帳號管理', isUsers: true },
@@ -663,6 +746,9 @@ const NAV_ICONS = {
   clinical:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>',
   vip:       '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
   announce:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17h-2c0-4.97-4.03-9-9-9V6h-1v2c-4.97 0-9 4.03-9 9H1"/><path d="M11 11v8a3 3 0 0 1-3 3v0a3 3 0 0 1-3-3v-8"/><line x1="11" y1="6" x2="11" y2="2"/></svg>',
+  search:    '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  stats:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+  stats:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
   notes:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
   archived:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
   users:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
@@ -697,6 +783,8 @@ function renderPanes() {
   else if (cat.isSettings) renderSettingsPane();
   else if (cat.isArchived) renderArchivedPane();
   else if (cat.isAnnounce) renderAnnouncePane();
+  else if (cat.isStats) renderStatsPane();
+  else if (cat.isSearch) renderSearchPane();
   else renderPane(catId);
 }
 
@@ -733,6 +821,208 @@ function renderAnnouncePane() {
   `;
   html += items.map(c => cardHTML(c)).join('');
   root.innerHTML = html;
+}
+
+// ====== 統計分析分頁 ======
+let _statsRange = 30;  // 預設 30 天
+
+async function renderStatsPane() {
+  const root = document.getElementById('pane-stats');
+  root.innerHTML = `
+    <div class="stats-toolbar">
+      <div class="stats-range">
+        <button onclick="setStatsRange(7)" class="${_statsRange===7?'primary':''}">過去 7 天</button>
+        <button onclick="setStatsRange(30)" class="${_statsRange===30?'primary':''}">過去 30 天</button>
+        <button onclick="setStatsRange(90)" class="${_statsRange===90?'primary':''}">過去 90 天</button>
+      </div>
+      <button class="primary" onclick="runMonthlyAnalysis()" style="padding:10px 18px;">
+        🤖 AI 月度分析(過去 ${_statsRange} 天)
+      </button>
+    </div>
+    <div id="stats-content"><div class="loading">載入統計...</div></div>
+    <div id="ai-analysis-content"></div>
+  `;
+  loadStats();
+}
+
+function setStatsRange(days) {
+  _statsRange = days;
+  renderStatsPane();
+}
+
+async function loadStats() {
+  const r = await api('getStats', { days: _statsRange });
+  const root = document.getElementById('stats-content');
+  if (!r || !r.ok) { root.innerHTML = '<div class="empty">載入失敗</div>'; return; }
+
+  const s = r.summary;
+  const trendIcon = r.trend.diff > 0 ? '📈' : r.trend.diff < 0 ? '📉' : '➡️';
+  const trendColor = r.trend.diff > 2 ? 'var(--red-text)' : r.trend.diff < -2 ? 'var(--green-text)' : 'var(--text2)';
+
+  const catLabel = { repair: '請修', leave: '請假', event: '重大異常', complaint: '申訴', trauma: '無名/重創', clinical: '臨床運作', vip: '交辦/VIP' };
+
+  let html = `
+    <div class="stats-grid">
+      <div class="stats-card">
+        <div class="sc-label">總案件數</div>
+        <div class="sc-num">${s.total}</div>
+      </div>
+      <div class="stats-card">
+        <div class="sc-label">未結案</div>
+        <div class="sc-num" style="color:${s.open>0?'var(--amber-text)':'var(--green-text)'};">${s.open}</div>
+      </div>
+      <div class="stats-card">
+        <div class="sc-label">結案率</div>
+        <div class="sc-num">${s.closeRate}<span style="font-size:0.5em;">%</span></div>
+      </div>
+      <div class="stats-card">
+        <div class="sc-label">平均處理時長</div>
+        <div class="sc-num">${s.avgDurationDays}<span style="font-size:0.5em;"> 天</span></div>
+        <div class="sc-sub">基於 ${s.durationSampleSize} 件已結案</div>
+      </div>
+      <div class="stats-card">
+        <div class="sc-label">7 天趨勢</div>
+        <div class="sc-num" style="color:${trendColor};">${trendIcon} ${r.trend.diff>=0?'+':''}${r.trend.diff}</div>
+        <div class="sc-sub">本週 ${r.trend.last7} vs 前週 ${r.trend.prev7}</div>
+      </div>
+      <div class="stats-card">
+        <div class="sc-label">特別案件</div>
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px;font-size:18px;">
+          <div><span class="badge b-red">醫糾 ${r.flagged.lawsuit}</span></div>
+          <div><span class="badge b-amber">長官 ${r.flagged.supervisor}</span></div>
+          <div><span class="badge" style="background:#fff8e1;color:#5d4407;">宣導 ${r.flagged.announce}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-section">
+      <h3>各類別案件數</h3>
+      <div class="stats-bars">
+        ${Object.entries(r.byCat || {}).sort((a,b) => b[1]-a[1]).map(([k, v]) => {
+          const max = Math.max(...Object.values(r.byCat || { x: 1 }));
+          const pct = max > 0 ? (v / max * 100) : 0;
+          return `<div class="stats-bar-row">
+            <span class="sb-label">${catLabel[k] || k}</span>
+            <div class="sb-bar"><div class="sb-fill" style="width:${pct}%"></div></div>
+            <span class="sb-num">${v}</span>
+          </div>`;
+        }).join('') || '<div class="empty">無資料</div>'}
+      </div>
+    </div>
+
+    ${r.topSubs && r.topSubs.length ? `
+      <div class="stats-section">
+        <h3>Top 5 子類別</h3>
+        <div class="stats-list">
+          ${r.topSubs.map((x, i) => `
+            <div class="sl-row">
+              <span class="sl-rank">${i+1}</span>
+              <span class="sl-cat">${catLabel[x.cat] || x.cat}</span>
+              <span class="sl-name">${escapeHtml(x.sub)}</span>
+              <span class="sl-num">${x.count} 件</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${r.topOwners && r.topOwners.length ? `
+      <div class="stats-section">
+        <h3>各 Leader 處理量</h3>
+        <div class="stats-list">
+          ${r.topOwners.map(x => `
+            <div class="sl-row">
+              <span class="sl-name" style="flex:1;">${escapeHtml(x.name)}</span>
+              <span class="sl-num">${x.count} 件</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <div style="font-size:18px;color:var(--text3);margin-top:16px;text-align:center;">
+      範圍:過去 ${r.range} 天 · 未含已歸檔案件
+    </div>
+  `;
+  root.innerHTML = html;
+}
+
+async function runMonthlyAnalysis() {
+  const target = document.getElementById('ai-analysis-content');
+  target.innerHTML = `
+    <div class="ai-loading">
+      <div class="loading-spin">🤖</div>
+      <div>AI 正在分析過去 ${_statsRange} 天的案件...</div>
+      <div style="font-size:18px;color:var(--text2);margin-top:6px;">通常需要 10-20 秒</div>
+    </div>
+  `;
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const r = await api('monthlyAnalysis', { days: _statsRange });
+  if (!r || !r.ok) {
+    target.innerHTML = `<div class="empty" style="color:var(--red-text);">${r ? r.error : '分析失敗'}</div>`;
+    return;
+  }
+
+  const a = r.analysis;
+  let html = `
+    <div class="ai-result">
+      <div class="ai-meta">🤖 AI 分析結果 · ${r.meta.caseCount} 件案件 · ${r.meta.generatedAt}</div>
+
+      <div class="ai-headline">${escapeHtml(a.headline || '')}</div>
+
+      ${a.trends && a.trends.length ? `
+        <div class="ai-section">
+          <h4>📈 主要趨勢</h4>
+          <ul>${a.trends.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul>
+        </div>
+      ` : ''}
+
+      ${a.recurring && a.recurring.length ? `
+        <div class="ai-section">
+          <h4>🔁 重複出現的問題</h4>
+          ${a.recurring.map(r => `
+            <div class="ai-recurring">
+              <div class="ai-rec-head">
+                <strong>${escapeHtml(r.issue)}</strong>
+                <span class="badge b-amber">出現 ${r.count} 次</span>
+                ${r.category ? `<span class="badge b-blue">${escapeHtml(r.category)}</span>` : ''}
+              </div>
+              <div class="ai-rec-body">建議:${escapeHtml(r.suggestion || '')}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${a.pdcaTopics && a.pdcaTopics.length ? `
+        <div class="ai-section ai-section-pdca">
+          <h4>💡 建議 PDCA / QCC 主題</h4>
+          ${a.pdcaTopics.map((p, i) => `
+            <div class="ai-pdca">
+              <div class="ai-pdca-num">${i+1}</div>
+              <div class="ai-pdca-body">
+                <div class="ai-pdca-topic">${escapeHtml(p.topic)}</div>
+                <div class="ai-pdca-rationale">為何值得做:${escapeHtml(p.rationale || '')}</div>
+                <div class="ai-pdca-impact">預期效益:${escapeHtml(p.expectedImpact || '')}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${a.concerns && a.concerns.length ? `
+        <div class="ai-section ai-section-concerns">
+          <h4>⚠️ 需特別關注</h4>
+          <ul>${a.concerns.map(c => `<li>${escapeHtml(c)}</li>`).join('')}</ul>
+        </div>
+      ` : ''}
+
+      <div class="ai-disclaimer">
+        ⚠️ 分析由 AI 生成,僅供參考。請以實際案件內容為準。內容已去識別化,不含病人資訊。
+      </div>
+    </div>
+  `;
+  target.innerHTML = html;
 }
 
 function renderPane(catId) {
@@ -2030,6 +2320,224 @@ async function changeMyPassword() {
     document.getElementById('s-new2').value = '';
     setTimeout(() => doLogout(), 1500);
   } else toast(r ? r.error : '失敗');
+}
+
+// ====== 搜尋(一般 + AI)======
+let _searchMode = 'normal'; // 'normal' or 'ai'
+
+function renderSearchPane() {
+  const root = document.getElementById('pane-search');
+  root.innerHTML = `
+    <div class="search-tabs">
+      <button id="st-normal" class="search-tab ${_searchMode==='normal'?'active':''}" onclick="switchSearchMode('normal')">📋 一般搜尋</button>
+      <button id="st-ai" class="search-tab ${_searchMode==='ai'?'active':''}" onclick="switchSearchMode('ai')">🤖 AI 協助搜尋</button>
+    </div>
+
+    <div id="search-normal" style="display:${_searchMode==='normal'?'block':'none'}">
+      <div class="search-form">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label>關鍵字(搜尋標題、詳情、進度)</label>
+            <input id="sn-kw" placeholder="例:給藥錯誤、ER101、夜班" onkeydown="if(event.key==='Enter')doSearch()">
+          </div>
+          <div>
+            <label>類別</label>
+            <select id="sn-cat">
+              <option value="">全部類別</option>
+              <option value="repair">請修</option>
+              <option value="leave">請假</option>
+              <option value="event">重大異常</option>
+              <option value="complaint">申訴</option>
+              <option value="trauma">無名/重創</option>
+              <option value="clinical">臨床運作</option>
+              <option value="vip">交辦/VIP</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+          <div>
+            <label>時間範圍</label>
+            <select id="sn-days">
+              <option value="0">全部時間</option>
+              <option value="7">過去 7 天</option>
+              <option value="30" selected>過去 30 天</option>
+              <option value="90">過去 90 天</option>
+              <option value="180">過去 180 天</option>
+              <option value="365">過去 1 年</option>
+            </select>
+          </div>
+          <div>
+            <label>狀態</label>
+            <select id="sn-state">
+              <option value="">全部狀態</option>
+              <option value="open">處理中</option>
+              <option value="pending">待批准</option>
+              <option value="closed">已封緘</option>
+              <option value="archived">已歸檔</option>
+            </select>
+          </div>
+        </div>
+        <button class="primary" style="margin-top:14px;width:100%;font-size:21px;padding:12px;" onclick="doSearch()">🔎 搜尋</button>
+      </div>
+      <div id="search-results" style="margin-top:18px;"></div>
+    </div>
+
+    <div id="search-ai" style="display:${_searchMode==='ai'?'block':'none'}">
+      <div class="search-form">
+        <div style="background:#e6f0fb;color:var(--blue-text);padding:12px 14px;border-radius:8px;font-size:18px;line-height:1.6;margin-bottom:12px;">
+          🤖 用自然語言問,AI 會分析過去案件並給你 pattern + 改善建議。<br>
+          <strong>範例</strong>:「最近的給藥錯誤有什麼共通點?」「這個月哪類問題出現最多?」「適合做 PDCA 的主題?」<br>
+          <span style="font-size:16px;color:var(--text2);">💡 完全免費(用 Gemini Flash-Lite)</span>
+        </div>
+        <label>你的問題</label>
+        <textarea id="sa-q" placeholder="例:最近的給藥錯誤事件有什麼共通模式?" style="min-height:80px;font-size:21px;"></textarea>
+        <div style="display:flex;gap:12px;align-items:center;margin-top:10px;">
+          <label style="margin:0;flex-shrink:0;">分析範圍:</label>
+          <select id="sa-days" style="flex:1;">
+            <option value="30">過去 30 天</option>
+            <option value="90" selected>過去 90 天</option>
+            <option value="180">過去 180 天</option>
+            <option value="365">過去 1 年</option>
+          </select>
+        </div>
+        <button class="primary" style="margin-top:14px;width:100%;font-size:21px;padding:12px;" onclick="doAiSearch()">🤖 開始 AI 分析</button>
+      </div>
+      <div id="ai-results" style="margin-top:18px;"></div>
+    </div>
+  `;
+}
+
+function switchSearchMode(mode) {
+  _searchMode = mode;
+  document.getElementById('st-normal').classList.toggle('active', mode==='normal');
+  document.getElementById('st-ai').classList.toggle('active', mode==='ai');
+  document.getElementById('search-normal').style.display = mode==='normal'?'block':'none';
+  document.getElementById('search-ai').style.display = mode==='ai'?'block':'none';
+}
+
+async function doSearch() {
+  const params = {
+    keyword: document.getElementById('sn-kw').value.trim(),
+    cat: document.getElementById('sn-cat').value,
+    days: document.getElementById('sn-days').value,
+    state: document.getElementById('sn-state').value,
+  };
+  const root = document.getElementById('search-results');
+  root.innerHTML = '<div class="loading">搜尋中...</div>';
+  const r = await api('searchCases', { params });
+  if (!r || !r.ok) { root.innerHTML = '<div class="empty">搜尋失敗</div>'; return; }
+  if (!r.results.length) {
+    root.innerHTML = '<div class="empty" style="font-size:18px;padding:30px;">沒有找到符合的案件,試試放寬條件</div>';
+    return;
+  }
+  root.innerHTML = `
+    <div style="font-size:18px;color:var(--text2);margin-bottom:12px;">
+      找到 ${r.total} 筆${r.truncated ? '(僅顯示最新 100 筆,請增加篩選條件)' : ''}
+    </div>
+    ${r.results.map(c => searchResultCard(c)).join('')}
+  `;
+}
+
+function searchResultCard(c) {
+  const catLabel = (CATS.find(x => x.id === c.cat) || { label: c.cat }).label;
+  const stateBadge = c.state === 'closed' ? '<span class="badge b-gray">已封緘</span>'
+                    : c.state === 'pending_approval' ? '<span class="badge b-amber">待批准</span>'
+                    : '<span class="badge b-green">處理中</span>';
+  const archivedBadge = String(c.deleted) === 'yes' ? '<span class="badge b-gray">已歸檔</span>' : '';
+  const lastP = c.progress && c.progress.length ? c.progress[c.progress.length-1] : null;
+  return `
+    <div class="card" style="cursor:pointer;" onclick="jumpToCaseFromSearch('${c.cat}','${c.id}','${String(c.deleted)==='yes'}')">
+      <div class="card-top">
+        <div style="flex:1;min-width:0;">
+          <div class="card-title">${escapeHtml(c.title)}</div>
+          <div class="card-meta">[${escapeHtml(catLabel)}] ${escapeHtml(c.subType||'')} · ${escapeHtml(String(c.created).split(' ')[0])}</div>
+        </div>
+        <div class="badges">${stateBadge}${archivedBadge}</div>
+      </div>
+      ${c.detail ? `<div class="card-body" style="font-size:18px;color:var(--text2);">${escapeHtml(c.detail).substring(0, 150)}${c.detail.length > 150 ? '...' : ''}</div>` : ''}
+      ${lastP ? `<div style="font-size:18px;color:var(--text2);margin-top:8px;">▸ ${escapeHtml(lastP.text)}</div>` : ''}
+    </div>
+  `;
+}
+
+function jumpToCaseFromSearch(cat, id, isArchived) {
+  if (isArchived === 'true') {
+    switchTab('archived');
+    setTimeout(() => highlightCard(id), 300);
+  } else {
+    switchTab(cat);
+    setTimeout(() => highlightCard(id), 300);
+  }
+}
+
+function highlightCard(caseId) {
+  const cards = document.querySelectorAll('.card');
+  cards.forEach(card => {
+    if (card.innerHTML.indexOf(`'${caseId}'`) >= 0 || card.innerHTML.indexOf(`"${caseId}"`) >= 0) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('card-highlight');
+      setTimeout(() => card.classList.remove('card-highlight'), 2400);
+    }
+  });
+}
+
+async function doAiSearch() {
+  const question = document.getElementById('sa-q').value.trim();
+  const days = document.getElementById('sa-days').value;
+  if (!question) { toast('請輸入問題'); return; }
+
+  const root = document.getElementById('ai-results');
+  root.innerHTML = `<div class="loading">🤖 AI 分析中,約 5–15 秒...</div>`;
+
+  const r = await api('aiSearch', { question, days });
+  if (!r || !r.ok) {
+    root.innerHTML = `<div class="empty">${r ? escapeHtml(r.error) : '分析失敗'}</div>`;
+    return;
+  }
+
+  const relevantCases = (r.relevantCaseIds || [])
+    .map(id => state.cases.find(c => c.id === id))
+    .filter(Boolean);
+
+  let html = `
+    <div class="ai-result">
+      <div class="ai-summary">
+        <div class="ai-h">📋 分析摘要</div>
+        <div class="ai-body">${escapeHtml(r.summary || '')}</div>
+        <div style="font-size:16px;color:var(--text3);margin-top:8px;">分析了過去 ${r.daysRange} 天共 ${r.totalCases} 筆案件</div>
+      </div>
+  `;
+
+  if (r.patterns && r.patterns.length) {
+    html += `<div class="ai-section">
+      <div class="ai-h">🔍 共通模式</div>
+      <ul class="ai-list">
+        ${r.patterns.map(p => `<li>${escapeHtml(p)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  if (r.recommendations && r.recommendations.length) {
+    html += `<div class="ai-section ai-recommend">
+      <div class="ai-h">💡 改善建議</div>
+      <ul class="ai-list">
+        ${r.recommendations.map(rec => `<li>${escapeHtml(rec)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  if (relevantCases.length) {
+    html += `<div class="ai-section">
+      <div class="ai-h">📂 相關案件 (${relevantCases.length})</div>
+      ${relevantCases.map(c => searchResultCard(c)).join('')}
+    </div>`;
+  }
+
+  html += `<div style="font-size:14px;color:var(--text3);margin-top:12px;text-align:center;">
+    ⚠️ AI 分析僅供參考,請以實際案件內容為準
+  </div></div>`;
+
+  root.innerHTML = html;
 }
 
 // ====== Modals: 加註進度 ======

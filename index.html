@@ -188,7 +188,7 @@
 
 <script>
 // ====== 設定 ======
-const API_URL = '請填入你的 Apps Script /exec URL';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyUfhENJGp6lcITyAikwXqjwyWqKy5IiPORk7DmwHuo1-K7HB_mQlW_QcmnVbhkCx0T/exec';
 const POLL_MS = 30000; // 30 秒輪詢
 
 // ====== State ======
@@ -215,26 +215,41 @@ const CATS = [
 
 // ====== API ======
 async function api(action, payload = {}) {
-  const body = { action, token: state.token, ...payload };
-  const json = JSON.stringify(body);
+  const body = { action, token: state.token || '', ...payload };
+  // 把所有值 stringify(物件 → JSON 字串)
+  const flat = {};
+  Object.entries(body).forEach(([k, v]) => {
+    if (v === null || v === undefined) return;
+    flat[k] = typeof v === 'object' ? JSON.stringify(v) : String(v);
+  });
+  const params = new URLSearchParams(flat);
+  const queryStr = params.toString();
+
   try {
     let res;
-    if (json.length <= 1500 && action !== 'updateNote' && action !== 'addNote' && !payload.case && !payload.updates) {
-      // GET
-      const params = new URLSearchParams();
-      Object.entries(body).forEach(([k, v]) => {
-        params.set(k, typeof v === 'object' ? JSON.stringify(v) : v);
+    if (queryStr.length <= 1800) {
+      // GET — 大部分動作走這裡
+      res = await fetch(`${API_URL}?${queryStr}`, {
+        method: 'GET',
+        redirect: 'follow',
       });
-      res = await fetch(`${API_URL}?${params.toString()}`);
     } else {
-      // POST text/plain (避免 CORS preflight)
+      // POST — 用 form-urlencoded(Apps Script 對這個最友善,不會觸發 redirect bug)
       res = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: json,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
+        body: queryStr,
+        redirect: 'follow',
       });
     }
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (e) {
+      console.error('Bad response:', text.substring(0, 200));
+      toast('伺服器回應異常,請通知管理員');
+      return null;
+    }
     if (data.code === 'AUTH') {
       toast('Session 過期,請重新登入');
       doLogout();

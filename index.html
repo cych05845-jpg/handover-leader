@@ -270,6 +270,7 @@
   .ai-pdca-topic { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
   .ai-pdca-rationale { font-size: 19px; color: var(--text2); line-height: 1.6; }
   .ai-pdca-impact { font-size: 19px; color: var(--accent-d); font-weight: 600; margin-top: 4px; }
+  .ai-case-refs { font-size: 17px; color: var(--text2); background: rgba(0,166,160,0.08); padding: 4px 10px; border-radius: 6px; margin: 6px 0; display: inline-block; font-family: ui-monospace, monospace; }
 
   .ai-section-concerns { background: var(--red-bg); border: 1px solid var(--red-bd); border-radius: 10px; padding: 12px 18px; }
   .ai-section-concerns h4 { color: var(--red-text); }
@@ -629,18 +630,37 @@ async function showApp() {
 
 // ====== Refresh ======
 async function refreshAll(showToast) {
+  // 在這些分頁時,輪詢不重新渲染(避免洗掉 AI 結果、搜尋結果等)
+  const isPolling = !showToast; // 手動按重新整理會帶 showToast=true
+  const protectedTabs = ['stats', 'search', 'archived'];
+  const onProtectedTab = protectedTabs.indexOf(state.activeTab) >= 0;
+
+  // 記錄滑動位置(渲染後恢復)
+  const scrollY = window.scrollY;
+
   const r = await api('listAll');
   if (!r || !r.ok) {
-    // 即使 API 失敗,也要渲染基本框架(讓 sidebar 顯示出來)
     state.cases = state.cases || [];
     state.notes = state.notes || [];
-    renderAll();
+    if (!isPolling || !onProtectedTab) renderAll();
     if (r && r.error) toast('資料載入失敗:' + r.error);
     return;
   }
   state.cases = r.cases || [];
   state.notes = r.notes || [];
-  renderAll();
+
+  if (isPolling && onProtectedTab) {
+    // 輪詢時若在受保護分頁,只更新 sidebar 徽章 + summary 數字,不洗掉分頁內容
+    renderSummary();
+    renderPendingBar();
+    renderTabs();
+    // 不呼叫 renderPanes()
+  } else {
+    renderAll();
+    // 渲染完恢復滑動位置(避免使用者正在滑的時候被打回頂部)
+    window.scrollTo({ top: scrollY });
+  }
+
   if (showToast) toast('已更新');
 }
 
@@ -988,6 +1008,7 @@ async function runMonthlyAnalysis() {
                 <span class="badge b-amber">出現 ${r.count} 次</span>
                 ${r.category ? `<span class="badge b-blue">${escapeHtml(r.category)}</span>` : ''}
               </div>
+              ${r.caseRefs ? `<div class="ai-case-refs">📋 案件:${escapeHtml(r.caseRefs)}</div>` : ''}
               <div class="ai-rec-body">建議:${escapeHtml(r.suggestion || '')}</div>
             </div>
           `).join('')}
@@ -1003,6 +1024,7 @@ async function runMonthlyAnalysis() {
               <div class="ai-pdca-body">
                 <div class="ai-pdca-topic">${escapeHtml(p.topic)}</div>
                 <div class="ai-pdca-rationale">為何值得做:${escapeHtml(p.rationale || '')}</div>
+                ${p.caseRefs ? `<div class="ai-case-refs">📋 支持案件:${escapeHtml(p.caseRefs)}</div>` : ''}
                 <div class="ai-pdca-impact">預期效益:${escapeHtml(p.expectedImpact || '')}</div>
               </div>
             </div>

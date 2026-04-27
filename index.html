@@ -272,6 +272,62 @@
   .ai-pdca-impact { font-size: 19px; color: var(--accent-d); font-weight: 600; margin-top: 4px; }
   .ai-case-refs { font-size: 17px; color: var(--text2); background: rgba(0,166,160,0.08); padding: 4px 10px; border-radius: 6px; margin: 6px 0; display: inline-block; font-family: ui-monospace, monospace; }
 
+  /* AI 諮詢(層次 2) */
+  .advice-warn { background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%); color: #5d4407; padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; font-size: 18px; line-height: 1.6; border-left: 4px solid #b8860b; }
+  .advice-context { background: var(--bg); padding: 12px 16px; border-radius: 8px; margin-bottom: 14px; }
+  .advice-context-h { font-size: 16px; color: var(--text2); font-weight: 600; }
+  .advice-result { margin-top: 18px; }
+  .advice-section { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; }
+  .advice-section.advice-warning { border-color: var(--red-bd); background: linear-gradient(180deg, #fff1f1 0%, #ffe7e7 100%); }
+  .advice-section.advice-human { border-color: #c4b5fd; background: linear-gradient(180deg, #f3f0ff 0%, #ede4ff 100%); }
+  .advice-h { font-size: 23px; font-weight: 700; margin-bottom: 10px; }
+  .advice-warning .advice-h { color: var(--red-text); }
+  .advice-human .advice-h { color: #6d28d9; }
+  .advice-body { font-size: 21px; line-height: 1.7; }
+  .advice-action { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+  .advice-action:last-child { border-bottom: none; }
+  .advice-action-num { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .advice-action-step { font-size: 21px; font-weight: 600; }
+  .advice-action-reason { font-size: 18px; color: var(--text2); margin-top: 4px; }
+  .advice-similar { padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 19px; }
+  .advice-similar:last-child { border-bottom: none; }
+
+  /* AI 快速建議(層次 1,新增案件時) */
+  .quick-advice-wrap { background: var(--bg); border: 1px dashed var(--border2); border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+
+  /* 統一的 AI 徽章 — 放在所有 AI 功能按鈕前面 */
+  .ai-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 5px;
+    letter-spacing: 0.05em;
+    margin-right: 8px;
+    box-shadow: 0 1px 3px rgba(124,58,237,0.3);
+    vertical-align: middle;
+  }
+  .ai-tag::before {
+    content: '✨';
+    font-size: 12px;
+  }
+  /* 大型版本(模態框標題用) */
+  .ai-tag-lg {
+    font-size: 18px;
+    padding: 4px 12px;
+  }
+  #quick-advice-btn { background: linear-gradient(90deg, #f0f8fc, #e6f0fb); color: var(--blue-text); border: 1px solid #b3d4f0; font-size: 16px; padding: 8px 14px; }
+  #quick-advice-btn:hover { background: linear-gradient(90deg, #e6f0fb, #d4e6f5); }
+  .quick-advice-result { margin-top: 8px; }
+  .qa-item { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; margin-top: 6px; font-size: 17px; line-height: 1.5; }
+  .qa-item.qa-warn { background: var(--amber-bg); border-color: var(--amber-bd); color: var(--amber-text); }
+  .qa-item.qa-alert { background: var(--red-bg); border-color: var(--red-bd); color: var(--red-text); }
+  .qa-apply { margin-left: 8px; padding: 3px 10px; font-size: 14px; background: var(--bg2); }
+
   .ai-section-concerns { background: var(--red-bg); border: 1px solid var(--red-bd); border-radius: 10px; padding: 12px 18px; }
   .ai-section-concerns h4 { color: var(--red-text); }
   .ai-section-concerns li { color: var(--red-text); }
@@ -856,7 +912,7 @@ async function renderStatsPane() {
         <button onclick="setStatsRange(90)" class="${_statsRange===90?'primary':''}">過去 90 天</button>
       </div>
       <button class="primary" onclick="runMonthlyAnalysis()" style="padding:10px 18px;">
-        🤖 AI 月度分析(過去 ${_statsRange} 天)
+        <span class="ai-tag">AI</span>月度分析(過去 ${_statsRange} 天)
       </button>
     </div>
     <div id="stats-content"><div class="loading">載入統計...</div></div>
@@ -987,7 +1043,7 @@ async function runMonthlyAnalysis() {
   const a = r.analysis;
   let html = `
     <div class="ai-result">
-      <div class="ai-meta">🤖 AI 分析結果 · ${r.meta.caseCount} 件案件 · ${r.meta.generatedAt}</div>
+      <div class="ai-meta"><span class="ai-tag">AI</span>分析結果 · ${r.meta.caseCount} 件案件 · ${r.meta.generatedAt}</div>
 
       <div class="ai-headline">${escapeHtml(a.headline || '')}</div>
 
@@ -1548,12 +1604,19 @@ function progressHTML(p, caseId, caseClosed) {
 }
 
 function actionsHTML(c) {
+  // 哪些類別開放 AI 諮詢
+  const aiAdviceCats = ['event', 'complaint', 'clinical', 'vip'];
+  const showAiBtn = aiAdviceCats.indexOf(c.cat) >= 0;
+  // 病人離院子類也要有
+  const isRunaway = c.cat === 'event' && c.subType === '病人離院';
+
   if (c.state === 'pending_approval') {
     return `<div class="actions">
       ${isApprover()
         ? `<button class="primary" onclick="approveCase('${c.id}')">批准封緘</button>`
         : `<button disabled>需護理長/副護理長批准</button>`}
       <button onclick="unsubmit('${c.id}')">退回繼續處理</button>
+      ${showAiBtn || isRunaway ? `<button onclick="openCaseAdvice('${c.id}')"><span class="ai-tag">AI</span>諮詢建議</button>` : ''}
       <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
     </div>`;
   }
@@ -1562,6 +1625,7 @@ function actionsHTML(c) {
   return `<div class="actions">
     <button onclick="openAddProgress('${c.id}')">加註進度</button>
     <button class="${announce ? 'announce-btn-active' : ''}" onclick="toggleAnnounce('${c.id}')">${announce ? '🔔 已標宣導' : '🔔 標為宣導'}</button>
+    ${showAiBtn || isRunaway ? `<button onclick="openCaseAdvice('${c.id}')"><span class="ai-tag">AI</span>諮詢建議</button>` : ''}
     ${c.cat === 'complaint' && (c.tier === 1 || c.tier === '1') ? `<button class="danger" onclick="escalateTier('${c.id}')">升 Tier 2</button>` : ''}
     ${c.cat === 'complaint' && (c.tier === 2 || c.tier === '2') ? `<button class="danger" onclick="convertToEvent('${c.id}')">轉重大異常</button>` : ''}
     <button class="${ready ? 'primary' : ''}" onclick="submitForApproval('${c.id}')">送批准</button>
@@ -1734,7 +1798,7 @@ function openPatientInfo(caseId) {
     </div>
 
     <div style="background:#e6f0fb;border:1px solid #b3d4f0;border-radius:6px;padding:10px;margin-bottom:12px;">
-      <div style="font-size: 20px;font-weight:600;color:var(--blue-text);margin-bottom:6px;">🤖 智慧解析</div>
+      <div style="font-size: 20px;font-weight:600;color:var(--blue-text);margin-bottom:6px;"><span class="ai-tag">AI</span>智慧解析</div>
       <div style="font-size: 18px;color:var(--text2);margin-bottom:8px;line-height:1.5;">
         AI 抽取檢傷紀錄資訊 → 自動填入下方欄位<br>
         <strong style="color:var(--red-text);">⚠️ 處理前請先遮蔽姓名、ID、病歷號(用手指/紙片擋)</strong>
@@ -2087,6 +2151,190 @@ async function deleteAttachment(caseId, attachmentId) {
   else toast(r ? r.error : '刪除失敗');
 }
 
+// ====== AI 諮詢:案件處理建議 ======
+function openCaseAdvice(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+
+  showModalLarge('AI 處理建議', `
+    <div class="advice-warn">
+      ⚠️ AI 建議僅供參考。實際處置請依臨床判斷、院方規範和主治醫師裁決。<br>
+      ⚠️ 諮詢前請確認 detail 內已無病人姓名、ID、病歷號等可識別資訊。
+    </div>
+
+    <div class="advice-context">
+      <div class="advice-context-h">當前案件</div>
+      <div style="font-weight:600;font-size:21px;margin-top:4px;">${escapeHtml(c.title)}</div>
+      <div style="font-size:18px;color:var(--text2);margin-top:4px;">
+        [${escapeHtml(CATS.find(x=>x.id===c.cat)?.label||c.cat)}/${escapeHtml(c.subType||'')}] · 建立 ${escapeHtml(String(c.created).split(' ')[0])}
+      </div>
+      ${c.detail ? `<div style="font-size:18px;color:var(--text2);margin-top:6px;line-height:1.5;">${escapeHtml(String(c.detail).substring(0,150))}${c.detail.length>150?'...':''}</div>` : ''}
+    </div>
+
+    <label>你想問 AI 的具體問題(可空,空白則 AI 會自己看案件給通用建議)</label>
+    <textarea id="advice-q" placeholder="例:這個案件下一步該怎麼做?需要通報哪些單位?PDCA 怎麼寫?" style="min-height:70px;font-size:21px;"></textarea>
+
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="primary" style="flex:1;padding:12px;font-size:21px;" onclick="runCaseAdvice('${caseId}')"><span class="ai-tag">AI</span>取得建議</button>
+    </div>
+    <div id="advice-loading" style="display:none;text-align:center;padding:30px;color:var(--text2);font-size:21px;">
+      <span class="ai-tag">AI</span>思考中,約 10-20 秒...
+    </div>
+    <div id="advice-result"></div>
+  `, () => true);
+}
+
+async function runCaseAdvice(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const question = document.getElementById('advice-q').value.trim();
+
+  // 確認沒個資
+  if (!confirm('確認 detail / 進度紀錄中沒有寫病人姓名、ID、病歷號?\n\nAI 建議會引用這些資料,若有可識別資訊將傳到 Gemini API。')) return;
+
+  document.getElementById('advice-loading').style.display = 'block';
+  document.getElementById('advice-result').innerHTML = '';
+
+  const r = await api('caseAdvice', { caseId, question });
+  document.getElementById('advice-loading').style.display = 'none';
+
+  if (!r || !r.ok) {
+    document.getElementById('advice-result').innerHTML = `<div class="empty" style="color:var(--red-text);margin-top:12px;">${r ? escapeHtml(r.error) : '失敗'}</div>`;
+    return;
+  }
+
+  const a = r.advice;
+  let html = `<div class="advice-result">`;
+
+  if (a.summary) {
+    html += `<div class="advice-section">
+      <div class="advice-h">📋 AI 觀察</div>
+      <div class="advice-body">${escapeHtml(a.summary)}</div>
+    </div>`;
+  }
+
+  if (a.actions && a.actions.length) {
+    html += `<div class="advice-section">
+      <div class="advice-h">💡 建議步驟</div>
+      ${a.actions.map((x, i) => {
+        const u = x.urgency || 'med';
+        const uClass = u === 'high' ? 'st-wait' : u === 'low' ? 'st-active' : '';
+        const uLabel = u === 'high' ? '🔴 緊急' : u === 'low' ? '🟢 一般' : '🟡 重要';
+        return `<div class="advice-action">
+          <div class="advice-action-num">${i+1}</div>
+          <div style="flex:1;">
+            <div class="advice-action-step">${escapeHtml(x.step||'')}</div>
+            ${x.rationale ? `<div class="advice-action-reason">${escapeHtml(x.rationale)}</div>` : ''}
+          </div>
+          <span class="badge ${uClass}">${uLabel}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  if (a.warnings && a.warnings.length) {
+    html += `<div class="advice-section advice-warning">
+      <div class="advice-h">🚨 特別注意</div>
+      <ul style="margin-left:22px;font-size:21px;line-height:1.7;">
+        ${a.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  if (a.needsHumanJudgement && a.needsHumanJudgement.length) {
+    html += `<div class="advice-section advice-human">
+      <div class="advice-h">👤 需人為決策</div>
+      <ul style="margin-left:22px;font-size:21px;line-height:1.7;">
+        ${a.needsHumanJudgement.map(w => `<li>${escapeHtml(w)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  if (a.similarRefs && a.similarRefs.length) {
+    html += `<div class="advice-section">
+      <div class="advice-h">📚 過去類似案件參考(${r.similarCount} 件中,AI 挑出最相關的)</div>
+      ${a.similarRefs.map(s => `<div class="advice-similar">
+        <div style="font-weight:600;">▸ ${escapeHtml(s.title||'')}</div>
+        ${s.lesson ? `<div style="font-size:19px;color:var(--text2);margin-top:4px;">💡 ${escapeHtml(s.lesson)}</div>` : ''}
+      </div>`).join('')}
+    </div>`;
+  }
+
+  html += `<div style="font-size:16px;color:var(--text3);margin-top:14px;text-align:center;">
+    ⚠️ 以上為 AI 建議,實際處置依臨床判斷
+  </div></div>`;
+
+  document.getElementById('advice-result').innerHTML = html;
+}
+
+// ====== AI 快速建議(新增案件時的輕量版) ======
+async function runQuickAdvice() {
+  const cat = window._currentAddCat || '';
+  const subType = document.getElementById('m-subType')?.value || '';
+  const title = document.getElementById('m-title')?.value.trim() || '';
+  const detail = document.getElementById('m-detail')?.value.trim() || '';
+
+  if (!title) { toast('請至少先填標題'); return; }
+
+  const btn = document.getElementById('quick-advice-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="ai-tag">AI</span>思考中...'; }
+
+  const r = await api('quickAdvice', { cat, subType, title, detail });
+
+  if (btn) { btn.disabled = false; btn.textContent = '<span class="ai-tag">AI</span>快速看一下'; }
+
+  const target = document.getElementById('quick-advice-result');
+  if (!r || !r.ok) {
+    if (target) target.innerHTML = `<div style="color:var(--red-text);font-size:18px;margin-top:8px;">${r ? escapeHtml(r.error) : '失敗'}</div>`;
+    return;
+  }
+
+  const a = r.advice;
+  let html = '<div class="quick-advice-result">';
+
+  if (a.subTypeOk === false && a.subTypeSuggest) {
+    html += `<div class="qa-item qa-warn">
+      💡 <strong>子類別建議</strong>:你選的「${escapeHtml(subType)}」可能不太對,建議改用「${escapeHtml(a.subTypeSuggest)}」
+    </div>`;
+  }
+
+  if (a.priority) {
+    const cur = document.getElementById('m-priority')?.value || 'med';
+    if (a.priority !== cur) {
+      html += `<div class="qa-item qa-warn">
+        💡 <strong>優先度建議</strong>:你選 ${cur === 'high' ? '高' : cur === 'low' ? '低' : '中'},AI 建議改為「${a.priority === 'high' ? '高' : a.priority === 'low' ? '低' : '中'}」 — ${escapeHtml(a.priorityReason||'')}
+        <button class="qa-apply" onclick="document.getElementById('m-priority').value='${a.priority}';this.parentElement.style.opacity=0.5;this.textContent='已套用';this.disabled=true;">套用</button>
+      </div>`;
+    }
+  }
+
+  if (a.extraChecklist && a.extraChecklist.length) {
+    html += `<div class="qa-item">
+      📋 <strong>建議補充 checklist</strong>:
+      <ul style="margin-left:24px;margin-top:4px;">
+        ${a.extraChecklist.map(x => `<li>${escapeHtml(x)}</li>`).join('')}
+      </ul>
+      <div style="font-size:14px;color:var(--text3);margin-top:4px;">(送出後可在卡片中手動補上)</div>
+    </div>`;
+  }
+
+  if (a.alerts && a.alerts.length) {
+    html += `<div class="qa-item qa-alert">
+      🚨 <strong>立即注意</strong>:
+      <ul style="margin-left:24px;margin-top:4px;">
+        ${a.alerts.map(x => `<li>${escapeHtml(x)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+
+  if (!html.includes('qa-item')) {
+    html += `<div class="qa-item" style="color:var(--green-text);">✓ AI 看了一下,沒有特別建議,可以直接送出</div>`;
+  }
+
+  html += '</div>';
+  if (target) target.innerHTML = html;
+}
+
 // ====== 歸檔 / 還原 / 刪除進度 ======
 async function archiveCase(caseId) {
   const c = state.cases.find(x => x.id === caseId);
@@ -2352,7 +2600,7 @@ function renderSearchPane() {
   root.innerHTML = `
     <div class="search-tabs">
       <button id="st-normal" class="search-tab ${_searchMode==='normal'?'active':''}" onclick="switchSearchMode('normal')">📋 一般搜尋</button>
-      <button id="st-ai" class="search-tab ${_searchMode==='ai'?'active':''}" onclick="switchSearchMode('ai')">🤖 AI 協助搜尋</button>
+      <button id="st-ai" class="search-tab ${_searchMode==='ai'?'active':''}" onclick="switchSearchMode('ai')"><span class="ai-tag">AI</span>協助搜尋</button>
     </div>
 
     <div id="search-normal" style="display:${_searchMode==='normal'?'block':'none'}">
@@ -2407,7 +2655,7 @@ function renderSearchPane() {
     <div id="search-ai" style="display:${_searchMode==='ai'?'block':'none'}">
       <div class="search-form">
         <div style="background:#e6f0fb;color:var(--blue-text);padding:12px 14px;border-radius:8px;font-size:18px;line-height:1.6;margin-bottom:12px;">
-          🤖 用自然語言問,AI 會分析過去案件並給你 pattern + 改善建議。<br>
+          <span class="ai-tag">AI</span> 用自然語言問,AI 會分析過去案件並給你 pattern + 改善建議。<br>
           <strong>範例</strong>:「最近的給藥錯誤有什麼共通點?」「這個月哪類問題出現最多?」「適合做 PDCA 的主題?」<br>
           <span style="font-size:16px;color:var(--text2);">💡 完全免費(用 Gemini Flash-Lite)</span>
         </div>
@@ -2422,7 +2670,7 @@ function renderSearchPane() {
             <option value="365">過去 1 年</option>
           </select>
         </div>
-        <button class="primary" style="margin-top:14px;width:100%;font-size:21px;padding:12px;" onclick="doAiSearch()">🤖 開始 AI 分析</button>
+        <button class="primary" style="margin-top:14px;width:100%;font-size:21px;padding:12px;" onclick="doAiSearch()"><span class="ai-tag">AI</span>開始分析</button>
       </div>
       <div id="ai-results" style="margin-top:18px;"></div>
     </div>
@@ -2509,7 +2757,7 @@ async function doAiSearch() {
   if (!question) { toast('請輸入問題'); return; }
 
   const root = document.getElementById('ai-results');
-  root.innerHTML = `<div class="loading">🤖 AI 分析中,約 5–15 秒...</div>`;
+  root.innerHTML = `<div class="loading"><span class="ai-tag">AI</span>分析中,約 5–15 秒...</div>`;
 
   const r = await api('aiSearch', { question, days });
   if (!r || !r.ok) {
@@ -2578,6 +2826,7 @@ function openAddProgress(caseId) {
 
 // ====== Modals: 新增案件 ======
 function openAddCase(catId) {
+  window._currentAddCat = catId; // for quickAdvice
   const cat = CATS.find(x => x.id === catId);
   const subTypeOpts = ({
     repair:    ['醫工', '工務', '建材', '資訊'],
@@ -2620,6 +2869,14 @@ function openAddCase(catId) {
       <option value="med" selected>中</option>
       <option value="low">低</option>
     </select>
+
+    ${['event','complaint','clinical','vip'].indexOf(catId) >= 0 ? `
+      <div class="quick-advice-wrap">
+        <button type="button" id="quick-advice-btn" onclick="runQuickAdvice()"><span class="ai-tag">AI</span>快速看一下</button>
+        <div style="font-size:14px;color:var(--text2);margin-top:4px;">AI 快速看標題+詳情,給優先度、checklist、風險提醒(可選)</div>
+        <div id="quick-advice-result"></div>
+      </div>
+    ` : ''}
     ${isComplaint ? `
       <label>申訴等級</label>
       <select id="m-tier">
@@ -2810,7 +3067,7 @@ function showModal(title, contentHTML, onSubmit) {
   root.innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
       <div class="modal">
-        <h2>${escapeHtml(title)}</h2>
+        <h2>${title.indexOf('AI') === 0 || title.indexOf('🤖') === 0 ? '<span class="ai-tag ai-tag-lg">AI</span>' + escapeHtml(title.replace(/^AI\s*|^🤖\s*/, '')) : escapeHtml(title)}</h2>
         ${contentHTML}
         <div class="modal-actions">
           <button onclick="closeModal()">取消</button>
@@ -3055,7 +3312,7 @@ function showModalLarge(title, contentHTML, onSubmit) {
   root.innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
       <div class="modal modal-large">
-        <h2>${escapeHtml(title)}</h2>
+        <h2>${title.indexOf('AI') === 0 || title.indexOf('🤖') === 0 ? '<span class="ai-tag ai-tag-lg">AI</span>' + escapeHtml(title.replace(/^AI\s*|^🤖\s*/, '')) : escapeHtml(title)}</h2>
         ${contentHTML}
         <div class="modal-actions">
           <button onclick="closeModal()">關閉</button>

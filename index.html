@@ -2279,14 +2279,35 @@ async function aiCleanText(targetId) {
 }
 
 function applyAiCleaned(targetId) {
+  console.log('[AI Clean] applyAiCleaned called, targetId:', targetId);
   const target = document.getElementById(targetId);
   const cleanedId = 'ai-cleaned-' + targetId;
   const cleanedEl = document.getElementById(cleanedId);
-  if (!target || !cleanedEl) return;
+  console.log('[AI Clean] target:', target, 'cleanedEl:', cleanedEl);
+
+  if (!target) {
+    console.error('[AI Clean] target not found!');
+    toast('錯誤:找不到原欄位');
+    return;
+  }
+  if (!cleanedEl) {
+    console.error('[AI Clean] cleaned element not found!');
+    toast('錯誤:找不到整理結果');
+    return;
+  }
+
+  // 直接設值,不 dispatch event(避免事件冒泡誤關 modal)
   target.value = cleanedEl.value;
-  target.dispatchEvent(new Event('input', { bubbles: true }));
-  closeAiClean(targetId);
+
+  // 移除藍框
+  const box = document.getElementById('ai-clean-box-' + targetId);
+  if (box) box.remove();
+
+  // 對焦到 textarea(代替 dispatchEvent)
+  try { target.focus(); } catch (e) {}
+
   toast('已使用 AI 整理版本');
+  console.log('[AI Clean] done, modal should still be open');
 }
 
 function closeAiClean(targetId) {

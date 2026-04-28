@@ -407,6 +407,15 @@
   .ck-section-divider { position: relative; margin: 14px 0 8px 0; padding-top: 12px; border-top: 1px dashed var(--border2); }
   .ck-section-divider .ck-section-label { display: inline-block; background: var(--bg); padding: 0 8px; position: relative; top: -22px; left: 0; margin-bottom: -16px; }
 
+  /* 法定通報警語(性侵 / 家暴 / 兒虐) */
+  .legal-warning { background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%); color: #991b1b; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; font-size: 18px; font-weight: 600; border-left: 4px solid #dc2626; line-height: 1.7; }
+  /* 平假日時間建議橫條 */
+  .time-advice { background: #fef3c7; color: #92400e; padding: 10px 14px; border-radius: 6px; margin-bottom: 10px; font-size: 18px; line-height: 1.6; border-left: 3px solid #f59e0b; }
+  .time-advice.urgent { background: #fee2e2; color: #991b1b; border-left-color: #dc2626; }
+  /* optional checklist 項目(較淺色) */
+  .ck.ck-optional { opacity: 0.7; }
+  .ck.ck-optional.done { opacity: 1; }
+
   .ai-section-concerns { background: var(--red-bg); border: 1px solid var(--red-bd); border-radius: 10px; padding: 12px 18px; }
   .ai-section-concerns h4 { color: var(--red-text); }
   .ai-section-concerns li { color: var(--red-text); }
@@ -1417,7 +1426,7 @@ function cardHTML(c) {
                    : c.state === 'purchasing' ? 'purchasing'
                    : '';
   const tierClass = (c.tier === 2 || c.tier === '2') ? 'tier2' : '';
-  const runawayClass = (c.cat === 'event' && c.subType === '病人離院') ? 'runaway' : '';
+  const runawayClass = (c.cat === 'event' && c.subType === '病人異常離院') ? 'runaway' : '';
   const isExpanded = state.expanded.has(c.id);
   const expandedClass = isExpanded ? 'expanded' : 'collapsed';
 
@@ -1770,22 +1779,35 @@ function staffInfoHTML(c) {
 }
 
 // ----- 附件區 -----
-const ATTACH_CATS = ['repair', 'event', 'clinical'];
+const ATTACH_CATS = ['repair', 'event', 'clinical', 'trauma'];
 
 function attachmentsHTML(c) {
   if (ATTACH_CATS.indexOf(c.cat) < 0) return '';
+  // trauma 只有性侵/家暴/兒虐才開放上傳(無名氏/重大創傷不開放)
+  if (c.cat === 'trauma' && ['性侵', '家暴', '兒虐'].indexOf(c.subType) < 0) return '';
+
   const list = c.attachments || [];
   const editable = c.state !== 'closed';
 
+  // 性侵/家暴/兒虐 的提示文字加強
+  const isLegal = c.cat === 'trauma' && ['性侵', '家暴', '兒虐'].indexOf(c.subType) >= 0;
+  const headerLabel = isLegal ? '📎 表單 / 證物照' : '📎 設備/現場照';
+  const warnMessage = c.subType === '性侵'
+    ? '⚠️ 嚴禁拍攝病人身體。僅可上傳採證套件、證物盒外觀、表單、轉介單。'
+    : isLegal
+      ? '⚠️ 僅上傳通報表單、轉介單。請勿上傳病人臉部、可識別個資。'
+      : '⚠️ 請勿上傳含病人姓名、病歷號之影像';
+
   return `<div class="attach">
-    <div class="att-h">📎 設備/現場照 (${list.length})
+    <div class="att-h">${headerLabel} (${list.length})
       ${editable ? `<button class="att-add" onclick="openUpload('${c.id}')">+ 上傳</button>` : ''}
     </div>
     ${list.length ? `
       <div class="att-grid">
         ${list.map(a => attachItemHTML(c.id, a, editable)).join('')}
       </div>
-    ` : `<div class="att-empty">無附件。⚠️ 請勿上傳含病人姓名、病歷號之影像</div>`}
+    ` : `<div class="att-empty">無附件。${warnMessage}</div>`}
+    ${list.length ? `<div class="att-empty" style="margin-top:6px;font-size:14px;">${warnMessage}</div>` : ''}
   </div>`;
 }
 
@@ -1859,6 +1881,7 @@ function checklistHTML(c) {
     const cls = ['ck'];
     if (it.done) cls.push('done');
     if (overdue) cls.push('overdue');
+    if (it.optional) cls.push('ck-optional');
     if (c.cat === 'repair' && (it.id === 'completed' || it.id === 'disposal')) {
       cls.push('ck-action');
     }
@@ -1883,11 +1906,165 @@ function checklistHTML(c) {
     </div>`;
   }
 
+  // 重大異常:PDCA(SAC 3) vs 事件追蹤單(SAC 4)二選一
+  if (c.cat === 'event') {
+    const normalItems = checklist.filter(it => !it.group);
+    const closureItems = checklist.filter(it => it.group === 'closure');
+    if (closureItems.length === 0) {
+      // 沒 group 標記就用通用渲染
+      return `<div class="checklist">
+        ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,PDCA / 追蹤單逾期未完成,請盡速催開</div>` : ''}
+        ${checklist.map(renderItem).join('')}
+      </div>`;
+    }
+    return `<div class="checklist">
+      ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,逾期未完成,請盡速催開</div>` : ''}
+      ${normalItems.map(renderItem).join('')}
+      <div class="ck-section-divider">
+        <span class="ck-section-label">🏁 結案(依 SAC 等級擇一)</span>
+      </div>
+      <div style="font-size:16px;color:var(--text2);margin:4px 0 8px 0;">SAC 3 → 做 PDCA · SAC 4 → 開事件追蹤單</div>
+      ${closureItems.map(renderItem).join('')}
+    </div>`;
+  }
+
+  // 重大外傷:性侵 / 家暴 / 兒虐 特殊 checklist
+  if (c.cat === 'trauma' && (c.subType === '性侵' || c.subType === '家暴' || c.subType === '兒虐')) {
+    const normalItems = checklist.filter(it => !it.group);
+    const groupedItems = {};
+    checklist.forEach(it => {
+      if (it.group) {
+        if (!groupedItems[it.group]) groupedItems[it.group] = [];
+        groupedItems[it.group].push(it);
+      }
+    });
+
+    let html = '<div class="checklist">';
+
+    // 法定通報警語(永遠在最頂)
+    html += `<div class="legal-warning">
+      ⚠️ <strong>法定強制通報事件</strong>
+      <div style="font-size:18px;margin-top:4px;line-height:1.6;">
+        24 小時內須完成法定通報。checklist 僅供工作流程追蹤,<strong>不取代正式通報</strong>。
+        ${c.subType === '性侵' ? '<br>⚠️ 證物須依鑑識保管鏈交接。<strong>不可拍攝病人身體</strong>,僅拍證物盒/採證套件/表單。' : ''}
+      </div>
+    </div>`;
+
+    // 家暴/兒虐:時間建議橫條
+    if (c.subType === '家暴' || c.subType === '兒虐') {
+      const advice = transferAdvice();
+      html += `<div class="time-advice ${advice.urgent ? 'urgent' : ''}">
+        <strong>${advice.icon} 目前時間判斷</strong>:${advice.message}
+      </div>`;
+    }
+
+    if (hasAnyOverdue) html += `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,逾期</div>`;
+
+    // 一般項目
+    html += normalItems.map(renderItem).join('');
+
+    // 性侵 evidence 三選一
+    if (groupedItems.evidence) {
+      html += `<div class="ck-section-divider">
+        <span class="ck-section-label">🔬 採證(以下三選一)</span>
+      </div>
+      <div style="font-size:16px;color:var(--text2);margin:4px 0 8px 0;">證物須交社工(緊急時直接交員警),由社工燒製照片給員警</div>`;
+      html += groupedItems.evidence.map(renderItem).join('');
+    }
+
+    // 家暴/兒虐 transfer 二選一
+    if (groupedItems.transfer) {
+      html += `<div class="ck-section-divider">
+        <span class="ck-section-label">📞 通報路徑(依時間擇一)</span>
+      </div>
+      <div style="font-size:16px;color:var(--text2);margin:4px 0 8px 0;">社工值班:週一至週五全天、週六上午 12:00 前 · 其餘時間請夜護通報</div>`;
+      html += groupedItems.transfer.map(renderItem).join('');
+    }
+
+    html += '</div>';
+    return html;
+  }
+
   // 其他類別維持原樣
   return `<div class="checklist">
     ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,PDCA / 追蹤單逾期未完成,請盡速催開</div>` : ''}
     ${checklist.map(renderItem).join('')}
   </div>`;
+}
+
+// 平假日判斷 + 給出通報路徑建議
+function transferAdvice() {
+  const now = new Date();
+  const dow = now.getDay(); // 0 = 週日
+  const hour = now.getHours();
+  const min = now.getMinutes();
+  const decimalHour = hour + min / 60;
+
+  // 國定假日清單(2026 年)
+  const HOLIDAYS_2026 = [
+    '2026-01-01', // 元旦
+    '2026-02-16', '2026-02-17', '2026-02-18', '2026-02-19', '2026-02-20', // 春節
+    '2026-02-27', '2026-02-28', // 228
+    '2026-04-03', '2026-04-04', '2026-04-05', '2026-04-06', // 兒童/清明
+    '2026-05-01', // 勞動節
+    '2026-06-19', // 端午
+    '2026-09-25', // 中秋(連假)
+    '2026-10-09', '2026-10-10', // 國慶連假
+  ];
+  const todayStr = now.toISOString().split('T')[0];
+  const isHoliday = HOLIDAYS_2026.indexOf(todayStr) >= 0;
+
+  // 社工值班:週一至週五全天 + 週六 12:00 前
+  const isSocialOnDuty =
+    !isHoliday && (
+      (dow >= 1 && dow <= 5) ||                // 週一到週五
+      (dow === 6 && decimalHour < 12)          // 週六上午
+    );
+
+  if (isSocialOnDuty) {
+    return {
+      icon: '🟢',
+      urgent: false,
+      message: `現在是社工值班時間(${dow === 6 ? '週六上午' : '平日'}),可直接轉社工通報`,
+    };
+  }
+
+  // 計算到下個社工上班還有多久
+  let nextDuty = new Date(now);
+  if (dow === 0) {
+    // 週日 → 週一 8:00
+    nextDuty.setDate(now.getDate() + 1);
+    nextDuty.setHours(8, 0, 0, 0);
+  } else if (dow === 6 && decimalHour >= 12) {
+    // 週六中午後 → 週一 8:00
+    nextDuty.setDate(now.getDate() + 2);
+    nextDuty.setHours(8, 0, 0, 0);
+  } else if (isHoliday) {
+    // 國定假日 → 找下一個非假日
+    let d = new Date(now);
+    for (let i = 0; i < 14; i++) {
+      d.setDate(d.getDate() + 1);
+      const ds = d.toISOString().split('T')[0];
+      if (HOLIDAYS_2026.indexOf(ds) < 0 && d.getDay() !== 0 && d.getDay() !== 6) {
+        nextDuty = new Date(d);
+        nextDuty.setHours(8, 0, 0, 0);
+        break;
+      }
+    }
+  } else {
+    // 其他下班時間,假設下個工作日 8:00
+    nextDuty.setDate(now.getDate() + 1);
+    nextDuty.setHours(8, 0, 0, 0);
+  }
+
+  const hoursToNext = (nextDuty.getTime() - now.getTime()) / 3600000;
+  const urgent = hoursToNext > 24;
+
+  return {
+    icon: urgent ? '🔴' : '🟡',
+    urgent: urgent,
+    message: `現在社工已下班(${isHoliday ? '國定假日' : dow === 0 ? '週日' : dow === 6 ? '週六下午' : '下班時間'}),距下個社工上班約 ${Math.round(hoursToNext)} 小時。${urgent ? '<strong>超過 24 小時通報期限,請夜護先通報</strong>' : '可等社工通報'}`,
+  };
 }
 
 function timelineHTML(c) {
@@ -1929,7 +2106,7 @@ function actionsHTML(c) {
   const aiAdviceCats = ['event', 'complaint', 'clinical', 'vip'];
   const showAiBtn = aiAdviceCats.indexOf(c.cat) >= 0;
   // 病人離院子類也要有
-  const isRunaway = c.cat === 'event' && c.subType === '病人離院';
+  const isRunaway = c.cat === 'event' && c.subType === '病人異常離院';
 
   // 等護理長裁示(報廢採購建議)
   if (c.state === 'need_decision') {
@@ -3249,9 +3426,9 @@ function openAddCase(catId) {
   const subTypeOpts = ({
     repair:    ['醫工', '工務', '建材', '資訊'],
     leave:     ['病假', '事假', '其他'],
-    event:     ['設備異常', '醫糾風險', '給藥錯誤', '跌倒', '病人離院', '其他'],
+    event:     ['給藥錯誤', '跌倒', '管路事件', '病人異常離院', '設備異常', '醫糾風險', '其他'],
     complaint: ['家屬不滿', '處置爭議', '候診時間', '其他'],
-    trauma:    ['無名氏', '重大創傷', '兒虐', '家暴'],
+    trauma:    ['無名氏', '重大創傷', '兒虐', '家暴', '性侵'],
     clinical:  ['流程', 'SOP', '跨科協調', '其他'],
     vip:       ['VIP', '交辦', '長官關心'],
   })[catId] || [];
@@ -3377,7 +3554,7 @@ function defaultChecklist(catId, opts) {
       return [
         { id: 'documented',  label: '記錄事件',                         done: false },
         { id: 'notified',    label: '已通報夜護 / 該單位主管',          done: false },
-        { id: 'handover',    label: '已交接給該單位後續處理',           done: false },
+        { id: 'handover',    label: '已交接給該單位後續處理 (選填)',    done: false, optional: true },
       ];
     }
     return [
@@ -3387,7 +3564,7 @@ function defaultChecklist(catId, opts) {
   }
 
   // 異常:病人離院特殊 checklist
-  if (catId === 'event' && subType === '病人離院') {
+  if (catId === 'event' && subType === '病人異常離院') {
     return [
       { id: 'lastSeen',     label: '已記錄發現時間 / 最後接觸時間',     done: false },
       { id: 'assessment',   label: '病人狀態評估(意識/管路/風險)',     done: false },
@@ -3409,8 +3586,8 @@ function defaultChecklist(catId, opts) {
     event: [
       { id: 'reported',     label: '班內主管知會',          done: false },
       { id: 'sac_decision', label: '病安 SAC 決策',         done: false },
-      { id: 'pdca',         label: 'PDCA 完成',             done: false },
-      { id: 'tracking',     label: '事件追蹤單繳交',        done: false },
+      { id: 'pdca',         label: 'PDCA 完成 (SAC 3)',     done: false, group: 'closure' },
+      { id: 'tracking',     label: '事件追蹤單繳交 (SAC 4)', done: false, group: 'closure' },
       { id: 'notified',     label: '已告知當事人結果',      done: false },
     ],
     complaint: tier === 2 ? [
@@ -3424,11 +3601,6 @@ function defaultChecklist(catId, opts) {
       { id: 'apologized', label: '已當面說明 / 道歉', done: false },
       { id: 'monitor',    label: '48 小時觀察是否升溫', done: false },
     ],
-    trauma: [
-      { id: 'team',     label: '團隊到位',          done: false },
-      { id: 'imaging',  label: '影像/實驗室完成',  done: false },
-      { id: 'admit',    label: '入院 / 開刀房安排', done: false },
-    ],
     clinical: [
       { id: 'identified', label: '問題定義清楚',         done: false },
       { id: 'discussed',  label: '已與相關科室討論',     done: false },
@@ -3441,6 +3613,34 @@ function defaultChecklist(catId, opts) {
       { id: 'discharged',  label: '病人離院 / 轉出',    done: false },
     ],
   };
+
+  // 重大外傷:子類別專屬 checklist
+  if (catId === 'trauma') {
+    if (subType === '性侵') {
+      return [
+        { id: 'team',          label: '團隊到位',                    done: false },
+        { id: 'reported',      label: '已法定通報(24 小時內)',    done: false },
+        { id: 'evid_full',     label: '已採證,證物與照片交社工',   done: false, group: 'evidence' },
+        { id: 'evid_drug',     label: '已採證(含藥物檢體),交社工', done: false, group: 'evidence' },
+        { id: 'evid_refused',  label: '病人拒絕採檢',                done: false, group: 'evidence' },
+      ];
+    }
+    if (subType === '家暴' || subType === '兒虐') {
+      return [
+        { id: 'team',         label: '團隊到位',                              done: false },
+        { id: 'imaging',      label: '影像/實驗室完成(含驗傷)',            done: false },
+        { id: 'social',       label: '已轉社工(平日上班時間)',              done: false, group: 'transfer' },
+        { id: 'night_nurse',  label: '已請夜護通報(假日 / 下班時間)',       done: false, group: 'transfer' },
+        { id: 'reported',     label: '已法定通報(24 小時內)',              done: false },
+      ];
+    }
+    return [
+      { id: 'team',     label: '團隊到位',          done: false },
+      { id: 'imaging',  label: '影像/實驗室完成',  done: false },
+      { id: 'admit',    label: '入院 / 開刀房安排', done: false },
+    ];
+  }
+
   return lists[catId] || [];
 }
 
@@ -3449,7 +3649,7 @@ function onSubTypeChange() {
   const el = document.getElementById('m-subType');
   if (!el) return;
   const hint = document.getElementById('m-runaway-hint');
-  if (hint) hint.style.display = el.value === '病人離院' ? 'block' : 'none';
+  if (hint) hint.style.display = el.value === '病人異常離院' ? 'block' : 'none';
 }
 
 // ====== Modals: 守則新增/編輯 ======

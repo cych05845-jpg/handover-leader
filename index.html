@@ -393,6 +393,20 @@
   .ck.ck-action:hover { background: linear-gradient(90deg, #d4e6f5 0%, #c4d8ec 50%, transparent 100%); }
   .ck.ck-action.done { background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 50%, transparent 100%); border-left-color: #059669; }
 
+  /* 案件當前進度文字描述 pill */
+  .cs-progress-pill { font-size: 19px; font-weight: 600; padding: 3px 12px; border-radius: 999px; border: 1px solid; }
+  .cs-progress-pill.cps-active     { background: #e0f2fe; color: #075985; border-color: #7dd3fc; }
+  .cs-progress-pill.cps-pending    { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .cs-progress-pill.cps-arrived    { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .cs-progress-pill.cps-decision   { background: #fed7aa; color: #9a3412; border-color: #fdba74; }
+  .cs-progress-pill.cps-purchasing { background: #ede9fe; color: #6d28d9; border-color: #c4b5fd; }
+  .cs-progress-pill.cps-closed     { background: #f3f4f6; color: #4b5563; border-color: #d1d5db; }
+
+  /* checklist 分段(請修案件) */
+  .ck-section-label { font-size: 17px; font-weight: 700; color: var(--text2); margin: 8px 0 4px 0; display: block; }
+  .ck-section-divider { position: relative; margin: 14px 0 8px 0; padding-top: 12px; border-top: 1px dashed var(--border2); }
+  .ck-section-divider .ck-section-label { display: inline-block; background: var(--bg); padding: 0 8px; position: relative; top: -22px; left: 0; margin-bottom: -16px; }
+
   .ai-section-concerns { background: var(--red-bg); border: 1px solid var(--red-bd); border-radius: 10px; padding: 12px 18px; }
   .ai-section-concerns h4 { color: var(--red-text); }
   .ai-section-concerns li { color: var(--red-text); }
@@ -1322,6 +1336,41 @@ function timeAgo(dateStr) {
   return `${mo} 個月前`;
 }
 
+// 案件當前進度文字描述(取代 N/M 計數)
+function caseStatus(c) {
+  // 已封緘
+  if (c.state === 'closed') return { text: '已封緘', cls: 'cps-closed' };
+  // 等批准
+  if (c.state === 'pending_approval') {
+    const wf = c.waitingFor || '';
+    if (wf.indexOf('已到貨') >= 0) return { text: '已到貨 · 等批准', cls: 'cps-arrived' };
+    if (wf.indexOf('維修完成') >= 0) return { text: '維修完成 · 等批准', cls: 'cps-pending' };
+    if (wf.indexOf('不採購') >= 0) return { text: '不採購 · 等批准', cls: 'cps-pending' };
+    return { text: '等批准', cls: 'cps-pending' };
+  }
+  // 等護理長裁示
+  if (c.state === 'need_decision') return { text: '已報廢 · 等裁示', cls: 'cps-decision' };
+  // 採購中
+  if (c.state === 'purchasing') return { text: '已採購', cls: 'cps-purchasing' };
+
+  // open 狀態 — 看 checklist 推斷進度(請修專用)
+  if (c.cat === 'repair') {
+    const cl = c.checklist || [];
+    const submit = cl.find(x => x.id === 'submit');
+    const process = cl.find(x => x.id === 'process');
+    if (process && process.done) return { text: '維修中', cls: 'cps-active' };
+    if (submit && submit.done) return { text: '已開單', cls: 'cps-active' };
+    return { text: '待處理', cls: 'cps-pending' };
+  }
+
+  // 其他類別 — 顯示完成度
+  const total = c.checklist ? c.checklist.length : 0;
+  const done = c.checklist ? c.checklist.filter(x => x.done).length : 0;
+  if (total === 0) return { text: '處理中', cls: 'cps-active' };
+  if (done === total) return { text: '可送批准', cls: 'cps-pending' };
+  return { text: `處理中 ${done}/${total}`, cls: 'cps-active' };
+}
+
 function cardHTML(c) {
   const stateClass = c.state === 'pending_approval' ? 'pending'
                    : c.state === 'closed' ? 'closed'
@@ -1337,6 +1386,9 @@ function cardHTML(c) {
   const total = c.checklist ? c.checklist.length : 0;
   const done = c.checklist ? c.checklist.filter(x => x.done).length : 0;
   const pct = total > 0 ? Math.round(done / total * 100) : 0;
+
+  // 案件當前進度文字描述(取代 N/M 計數)
+  const progressInfo = caseStatus(c);
 
   // 最新一筆 progress
   const lastProgress = c.progress && c.progress.length ? c.progress[c.progress.length - 1] : null;
@@ -1375,15 +1427,9 @@ function cardHTML(c) {
       <div class="cs-line2">
         <span class="cs-status ${statusClass(c.waitingFor)}" onclick="event.stopPropagation();openStatusPicker('${c.id}')">${statusIcon(c.waitingFor)} ${escapeHtml(shortStatus(c.waitingFor))} ▾</span>
         <span class="cs-time">⏱ ${escapeHtml(updateAgo)}${stale ? ` <span class="cs-stale-tag">${daysOld} 天未動</span>` : ''}</span>
-        ${total > 0 ? `<span class="cs-progress-text">${done}/${total}</span>` : ''}
+        <span class="cs-progress-pill ${progressInfo.cls}">${escapeHtml(progressInfo.text)}</span>
         ${stateBadge(c.state)}
       </div>
-
-      ${total > 0 ? `
-        <div class="cs-progress-bar">
-          <div class="cs-progress-fill" style="width:${pct}%"></div>
-        </div>
-      ` : ''}
 
       <div class="cs-flags">${affiliationBadge(c)}${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
 
@@ -1768,22 +1814,40 @@ function checklistHTML(c) {
   const hasAnyOverdue = rule && c.state !== 'closed' &&
     checklist.some(it => rule.items.indexOf(it.id) >= 0 && !it.done && days > rule.days);
 
+  // 渲染單個 checklist 項目
+  const renderItem = (it) => {
+    const overdue = !it.done && isOverdueItem(c, it.id);
+    const cls = ['ck'];
+    if (it.done) cls.push('done');
+    if (overdue) cls.push('overdue');
+    if (c.cat === 'repair' && (it.id === 'completed' || it.id === 'disposal')) {
+      cls.push('ck-action');
+    }
+    return `<div class="${cls.join(' ')}" ${disabled ? '' : `onclick="toggleCheck('${c.id}','${it.id}')"`}>
+      <span class="dot"></span>
+      <span>${escapeHtml(it.label)}${overdue ? ` <span class="ck-tag">逾期 ${days - rule.days} 天</span>` : ''}${it.note ? ` — <em style="color:var(--text2);font-style:normal;">${escapeHtml(it.note)}</em>` : ''}${c.cat === 'repair' && it.id === 'completed' && !it.done ? ' <span style="color:var(--accent-d);font-size:16px;">→ 勾起來自動送批准</span>' : ''}${c.cat === 'repair' && it.id === 'disposal' && !it.done ? ' <span style="color:#a16207;font-size:16px;">→ 勾起來等護理長裁示</span>' : ''}</span>
+    </div>`;
+  };
+
+  // 請修案件分段顯示:處理進度 vs 結案二選一
+  if (c.cat === 'repair') {
+    const progressItems = checklist.filter(it => it.id === 'submit' || it.id === 'process');
+    const closeItems = checklist.filter(it => it.id === 'completed' || it.id === 'disposal');
+    return `<div class="checklist">
+      ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,逾期未完成,請盡速催開</div>` : ''}
+      <div class="ck-section-label">📋 處理進度</div>
+      ${progressItems.map(renderItem).join('')}
+      <div class="ck-section-divider">
+        <span class="ck-section-label">🏁 結案(以下二選一)</span>
+      </div>
+      ${closeItems.map(renderItem).join('')}
+    </div>`;
+  }
+
+  // 其他類別維持原樣
   return `<div class="checklist">
     ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,PDCA / 追蹤單逾期未完成,請盡速催開</div>` : ''}
-    ${checklist.map(it => {
-      const overdue = !it.done && isOverdueItem(c, it.id);
-      const cls = ['ck'];
-      if (it.done) cls.push('done');
-      if (overdue) cls.push('overdue');
-      // 重要 checkbox 加視覺強調
-      if (c.cat === 'repair' && (it.id === 'completed' || it.id === 'disposal')) {
-        cls.push('ck-action');
-      }
-      return `<div class="${cls.join(' ')}" ${disabled ? '' : `onclick="toggleCheck('${c.id}','${it.id}')"`}>
-        <span class="dot"></span>
-        <span>${escapeHtml(it.label)}${overdue ? ` <span class="ck-tag">逾期 ${days - rule.days} 天</span>` : ''}${it.note ? ` — <em style="color:var(--text2);font-style:normal;">${escapeHtml(it.note)}</em>` : ''}${c.cat === 'repair' && it.id === 'completed' && !it.done ? ' <span style="color:var(--accent-d);font-size:16px;">→ 勾起來自動送批准</span>' : ''}${c.cat === 'repair' && it.id === 'disposal' && !it.done ? ' <span style="color:#a16207;font-size:16px;">→ 勾起來等護理長裁示</span>' : ''}</span>
-      </div>`;
-    }).join('')}
+    ${checklist.map(renderItem).join('')}
   </div>`;
 }
 

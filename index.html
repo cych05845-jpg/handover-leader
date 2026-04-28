@@ -80,6 +80,69 @@
   .nav-badge { background: var(--red-text); color: #fff; font-size: 16px; padding: 1px 7px; border-radius: 10px; font-weight: 600; }
   .nav-badge-purple { background: #7c3aed !important; }
 
+  /* sidebar 分組標題 */
+  .nav-group-h {
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.45);
+    padding: 14px 18px 6px 18px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+  }
+  .nav-group-h:first-child { padding-top: 4px; }
+  .nav-group-h.collapsed { cursor: pointer; }
+  .nav-group-h.collapsed:hover { color: rgba(255,255,255,0.7); }
+  .nav-group-arrow { font-size: 12px; opacity: 0.7; }
+  /* 區段之間視覺分隔 */
+  .nav-group-h:not(:first-child) {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    margin-top: 6px;
+  }
+
+  /* 分頁內搜尋框(請修、採購中等)*/
+  .pane-filter {
+    position: relative;
+    margin-bottom: 14px;
+  }
+  .pane-filter-input {
+    width: 100%;
+    padding: 10px 38px 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 19px;
+    background: var(--bg2);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .pane-filter-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,166,160,0.12);
+  }
+  .pane-filter-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: var(--text2);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pane-filter-clear:hover { background: var(--text); }
+
   .sidebar-foot { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 18px; color: var(--text2-on-dark); }
   .sidebar-foot .who { color: var(--text-on-dark); font-weight: 600; font-size: 20px; }
   .sidebar-foot .role-tag { display: inline-block; padding: 1px 7px; background: rgba(0,166,160,0.2); color: var(--accent); border-radius: 10px; font-size: 15px; margin-left: 6px; font-weight: 600; }
@@ -659,24 +722,26 @@ const state = {
 };
 
 const CATS = [
-  { id: 'repair',    label: '請修',     hasTracking: true },
-  { id: 'leave',     label: '請假',     hasTracking: true },
-  { id: 'event',     label: '重大異常', hasTracking: true },
-  { id: 'complaint', label: '申訴',     hasTracking: true, tieredLevel: true },
-  { id: 'trauma',    label: '無名/重創', hasTracking: true, timed: true },
-  { id: 'clinical',  label: '臨床運作', hasTracking: true },
-  { id: 'vip',       label: '交辦/VIP', hasTracking: true },
-  { id: 'mci',       label: 'MCI/新聞', hasTracking: true },
-  { id: 'infection', label: '感染管制', hasTracking: true },
-  { id: 'announce',  label: '宣導事項', isAnnounce: true },
-  { id: 'purchasing',label: '採購中',   isPurchasing: true },
-  { id: 'search',    label: '搜尋',     isSearch: true },
-  { id: 'stats',     label: '統計分析', isStats: true },
-  { id: 'stats',     label: '統計分析', isStats: true },
-  { id: 'notes',     label: '守則',     isNotes: true },
-  { id: 'archived',  label: '已歸檔',   isArchived: true },
-  { id: 'users',     label: '帳號管理', isUsers: true },
-  { id: 'settings',  label: '我的設定', isSettings: true },
+  // ── 案件類別 ──
+  { id: 'repair',    label: '請修',     hasTracking: true, group: 'cases' },
+  { id: 'leave',     label: '請假',     hasTracking: true, group: 'cases' },
+  { id: 'event',     label: '重大異常', hasTracking: true, group: 'cases' },
+  { id: 'complaint', label: '申訴',     hasTracking: true, tieredLevel: true, group: 'cases' },
+  { id: 'trauma',    label: '無名/重創', hasTracking: true, timed: true, group: 'cases' },
+  { id: 'clinical',  label: '臨床運作', hasTracking: true, group: 'cases' },
+  { id: 'vip',       label: '交辦/VIP', hasTracking: true, group: 'cases' },
+  { id: 'mci',       label: 'MCI/新聞', hasTracking: true, group: 'cases' },
+  { id: 'infection', label: '感染管制', hasTracking: true, group: 'cases' },
+  // ── 工具 ──
+  { id: 'announce',  label: '宣導事項', isAnnounce: true, group: 'tools' },
+  { id: 'purchasing',label: '採購中',   isPurchasing: true, group: 'tools' },
+  { id: 'search',    label: '搜尋',     isSearch: true, group: 'tools' },
+  { id: 'stats',     label: '統計分析', isStats: true, group: 'tools' },
+  // ── 設定(預設摺疊)──
+  { id: 'notes',     label: '守則',     isNotes: true, group: 'settings' },
+  { id: 'archived',  label: '已歸檔',   isArchived: true, group: 'settings' },
+  { id: 'users',     label: '帳號管理', isUsers: true, group: 'settings' },
+  { id: 'settings',  label: '我的設定', isSettings: true, group: 'settings' },
 ];
 
 // ====== API ======
@@ -954,31 +1019,102 @@ const NAV_ICONS = {
   settings:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
 };
 
+// 分組摺疊狀態(設定區預設摺起來)
+if (state.collapsedGroups === undefined) state.collapsedGroups = { settings: true };
+
+// 分頁內篩選關鍵字(請修、採購中,各自獨立)
+if (!state.paneFilter) state.paneFilter = {};
+
+// 篩選 helper:模糊比對標題/詳情/子類別
+function matchPaneFilter(c, kw) {
+  if (!kw) return true;
+  const k = kw.toLowerCase();
+  return [c.title, c.detail, c.subType, c.meta, c.waitingFor]
+    .filter(Boolean)
+    .some(s => String(s).toLowerCase().indexOf(k) >= 0);
+}
+
+function setPaneFilter(catId, kw) {
+  state.paneFilter[catId] = kw;
+  renderPanes();
+}
+
+function paneFilterBox(catId, placeholder) {
+  const kw = state.paneFilter[catId] || '';
+  return `<div class="pane-filter">
+    <input type="text" class="pane-filter-input"
+           placeholder="${placeholder}"
+           value="${escapeHtml(kw)}"
+           oninput="setPaneFilter('${catId}', this.value)">
+    ${kw ? `<button class="pane-filter-clear" onclick="setPaneFilter('${catId}', '')" title="清除">×</button>` : ''}
+  </div>`;
+}
+
+function navItemHTML(c) {
+  let badge = 0;
+  let badgeClass = '';
+  if (c.hasTracking) {
+    badge = state.cases.filter(x => x.cat === c.id && x.state !== 'closed' && String(x.deleted || '') !== 'yes').length;
+  } else if (c.isAnnounce) {
+    badge = announceCount();
+  } else if (c.isPurchasing) {
+    badge = state.cases.filter(x =>
+      (x.state === 'need_decision' || x.state === 'purchasing' ||
+       (x.state === 'pending_approval' && String(x.waitingFor || '').indexOf('已到貨') >= 0)) &&
+      String(x.deleted || '') !== 'yes'
+    ).length;
+    badgeClass = 'nav-badge-purple';
+  }
+  return `<div class="nav-item ${state.activeTab === c.id ? 'active' : ''}" onclick="switchTab('${c.id}')">
+    ${NAV_ICONS[c.id] || ''}
+    <span class="nav-label">${c.label}</span>
+    ${badge ? `<span class="nav-badge ${badgeClass}">${badge}</span>` : ''}
+  </div>`;
+}
+
 function renderTabs() {
-  document.getElementById('sidebar-nav').innerHTML = CATS.map(c => {
-    let badge = 0;
-    let badgeClass = '';
-    if (c.hasTracking) {
-      badge = state.cases.filter(x => x.cat === c.id && x.state !== 'closed' && String(x.deleted || '') !== 'yes').length;
-    } else if (c.isAnnounce) {
-      badge = announceCount();
-    } else if (c.isPurchasing) {
-      badge = state.cases.filter(x =>
-        (x.state === 'need_decision' || x.state === 'purchasing' ||
-         (x.state === 'pending_approval' && String(x.waitingFor || '').indexOf('已到貨') >= 0)) &&
-        String(x.deleted || '') !== 'yes'
-      ).length;
-      badgeClass = 'nav-badge-purple';
+  const groups = {
+    cases:    { label: '案件',      items: [] },
+    tools:    { label: '工具',      items: [] },
+    settings: { label: '設定',      items: [] },
+  };
+  CATS.forEach(c => {
+    const g = c.group || 'cases';
+    if (!groups[g]) groups[g] = { label: g, items: [] };
+    groups[g].items.push(c);
+  });
+
+  let html = '';
+  Object.keys(groups).forEach(gKey => {
+    const g = groups[gKey];
+    if (!g.items.length) return;
+    const isCollapsible = gKey === 'settings'; // 只有設定可摺疊
+    const collapsed = !!state.collapsedGroups[gKey];
+
+    if (isCollapsible) {
+      html += `<div class="nav-group-h ${collapsed ? 'collapsed' : ''}" onclick="toggleNavGroup('${gKey}')">
+        <span>${g.label}</span>
+        <span class="nav-group-arrow">${collapsed ? '▸' : '▾'}</span>
+      </div>`;
+    } else {
+      html += `<div class="nav-group-h"><span>${g.label}</span></div>`;
     }
-    return `<div class="nav-item ${state.activeTab === c.id ? 'active' : ''}" onclick="switchTab('${c.id}')">
-      ${NAV_ICONS[c.id] || ''}
-      <span class="nav-label">${c.label}</span>
-      ${badge ? `<span class="nav-badge ${badgeClass}">${badge}</span>` : ''}
-    </div>`;
-  }).join('');
+
+    if (!collapsed) {
+      html += g.items.map(navItemHTML).join('');
+    }
+  });
+
+  document.getElementById('sidebar-nav').innerHTML = html;
+
   // 同步頂部標題
   const cur = CATS.find(x => x.id === state.activeTab);
   if (cur) document.getElementById('page-title').textContent = cur.label;
+}
+
+function toggleNavGroup(gKey) {
+  state.collapsedGroups[gKey] = !state.collapsedGroups[gKey];
+  renderTabs();
 }
 
 function renderPanes() {
@@ -1034,39 +1170,69 @@ function renderAnnouncePane() {
 // ====== 採購中分頁 ======
 function renderPurchasingPane() {
   const cs = state.cases.filter(c => String(c.deleted || '') !== 'yes');
+  const kw = state.paneFilter['purchasing'] || '';
+  const filter = (arr) => kw ? arr.filter(c => matchPaneFilter(c, kw)) : arr;
 
   // 等下單裁示(state = need_decision)
-  const decision = cs.filter(c => c.state === 'need_decision')
+  const decision = filter(cs.filter(c => c.state === 'need_decision'))
     .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
 
-  // 已採購,等到貨(state = purchasing,waitingFor 是「已採購,等到貨」)
-  const purchased = cs.filter(c => c.state === 'purchasing')
+  // 已採購,等到貨(state = purchasing)
+  const purchased = filter(cs.filter(c => c.state === 'purchasing'))
     .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
 
-  // 已到貨,等批准(state = pending_approval 且來自採購流程,以 progress 判斷)
-  // 簡化:看 waitingFor 是「已到貨,等批准」的 pending_approval 案件
-  const arrived = cs.filter(c =>
+  // 已到貨,等批准
+  const arrived = filter(cs.filter(c =>
     c.state === 'pending_approval' &&
     String(c.waitingFor || '').indexOf('已到貨') >= 0
-  ).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+  )).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+
+  // 篩選時:也撈已封緘的同物件案件,讓 leader 看完整歷史
+  let closedFiltered = [];
+  if (kw) {
+    closedFiltered = cs.filter(c =>
+      c.state === 'closed' &&
+      // 必須是請修案件且 waitingFor 含「已到貨」或「不採購」(代表是採購流程結案的)
+      (c.cat === 'repair' &&
+       (String(c.waitingFor || '').indexOf('已到貨') >= 0 ||
+        String(c.waitingFor || '').indexOf('不採購') >= 0)) &&
+      matchPaneFilter(c, kw)
+    ).sort((a, b) => String(b.closedAt || '').localeCompare(String(a.closedAt || '')));
+  }
 
   const root = document.getElementById('pane-purchasing');
-  if (!decision.length && !purchased.length && !arrived.length) {
-    root.innerHTML = `
-      <div style="background:var(--accent-bg);color:var(--accent-d);padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:21px;line-height:1.6;">
-        🛒 <strong>採購中</strong>分頁顯示需要你裁示的採購案件,以及已下單等貨到的案件。<br>
-        當人員回報「已報廢,建議採購」時案件會自動進到這裡。
-      </div>
-      <div class="empty">目前沒有採購相關案件</div>
-    `;
+  let html = paneFilterBox('purchasing', '🔍 找特定物件的採購狀態 — 例:推床、ER101 床、監視器');
+
+  if (kw) {
+    const totalFound = decision.length + purchased.length + arrived.length + closedFiltered.length;
+    html += `<div style="background:var(--accent-bg);color:var(--accent-d);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:18px;">
+      🔍 篩選「${escapeHtml(kw)}」共 ${totalFound} 件(含採購相關歷史)
+    </div>`;
+  }
+
+  if (!decision.length && !purchased.length && !arrived.length && !closedFiltered.length) {
+    if (kw) {
+      html += `<div class="empty">沒有符合「${escapeHtml(kw)}」的採購案件</div>`;
+    } else {
+      html += `
+        <div style="background:var(--accent-bg);color:var(--accent-d);padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:21px;line-height:1.6;">
+          🛒 <strong>採購中</strong>分頁顯示需要你裁示的採購案件,以及已下單等貨到的案件。<br>
+          當人員回報「已報廢,建議採購」時案件會自動進到這裡。
+        </div>
+        <div class="empty">目前沒有採購相關案件</div>
+      `;
+    }
+    root.innerHTML = html;
     return;
   }
 
-  let html = `
-    <div style="background:#fef3c7;color:#92400e;padding:10px 16px;border-radius:8px;margin-bottom:14px;font-size:18px;">
-      💡 採購流程:<strong>等下單裁示</strong> → <strong>已採購</strong> → <strong>已到貨,等批准</strong> → 封緘
-    </div>
-  `;
+  if (!kw) {
+    html += `
+      <div style="background:#fef3c7;color:#92400e;padding:10px 16px;border-radius:8px;margin-bottom:14px;font-size:18px;">
+        💡 採購流程:<strong>等下單裁示</strong> → <strong>已採購</strong> → <strong>已到貨,等批准</strong> → 封緘
+      </div>
+    `;
+  }
 
   if (decision.length) {
     html += `<div class="section-h" style="color:#a16207;">⏸ 等護理長裁示是否採購 (${decision.length})</div>`;
@@ -1079,6 +1245,11 @@ function renderPurchasingPane() {
   if (arrived.length) {
     html += `<div class="section-h" style="color:#059669;margin-top:18px;">📦 已到貨,等批准 (${arrived.length})</div>`;
     html += arrived.map(c => cardHTML(c)).join('');
+  }
+  // 篩選時顯示已封緘的同物件採購案件
+  if (closedFiltered.length) {
+    html += `<div class="section-h closed" style="margin-top:18px;">✓ 已完成採購歷史 (${closedFiltered.length})</div>`;
+    html += closedFiltered.map(c => cardHTML(c)).join('');
   }
   root.innerHTML = html;
 }
@@ -1304,7 +1475,10 @@ function shouldHideClosed(c) {
 const showAllClosed = {};
 
 function renderPane(catId) {
-  const items = state.cases.filter(x => x.cat === catId && String(x.deleted || '') !== 'yes');
+  const allItems = state.cases.filter(x => x.cat === catId && String(x.deleted || '') !== 'yes');
+  const kw = state.paneFilter[catId] || '';
+  const items = kw ? allItems.filter(c => matchPaneFilter(c, kw)) : allItems;
+
   const pending = items.filter(x => x.state === 'pending_approval').sort((a,b) => String(b.created).localeCompare(String(a.created)));
   const open    = items.filter(x => x.state === 'open' || x.state === 'need_decision' || x.state === 'purchasing').sort((a,b) => String(b.created).localeCompare(String(a.created)));
   const closed  = items.filter(x => x.state === 'closed').sort((a,b) => String(b.closedAt||'').localeCompare(String(a.closedAt||'')));
@@ -1314,16 +1488,33 @@ function renderPane(catId) {
   const closedHidden = closed.filter(c => shouldHideClosed(c));
   const showAll = !!showAllClosed[catId];
 
-  let html = '';
+  // 篩選結果跨狀態(搜尋時把已封緘的也顯示出來,方便追查物件歷史)
+  const isFiltering = !!kw;
+
+  const catLabel = CATS.find(x=>x.id===catId).label;
+  let html = paneFilterBox(catId, `🔍 在「${catLabel}」內搜尋 — 例:推床、ER101、監視器`);
+
+  if (isFiltering) {
+    html += `<div style="background:var(--accent-bg);color:var(--accent-d);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:18px;">
+      🔍 篩選「${escapeHtml(kw)}」共 ${items.length} 件(含全部歷史)
+    </div>`;
+  }
+
   if (pending.length) {
     html += `<div class="section-h pending">待批准封緘 (${pending.length})</div>`;
     html += pending.map(cardHTML).join('');
   }
   html += `<div class="section-h">未結案 (${open.length})</div>`;
   html += open.length ? open.map(cardHTML).join('') : '<div class="empty">沒有未結案件</div>';
-  html += `<button class="add-btn" onclick="openAddCase('${catId}')">+ 新增${CATS.find(x=>x.id===catId).label}案件</button>`;
+  html += `<button class="add-btn" onclick="openAddCase('${catId}')">+ 新增${catLabel}案件</button>`;
 
-  if (closedRecent.length || closedHidden.length) {
+  // 篩選時:不分「3 天內 / 3 天前」,全部顯示出來
+  if (isFiltering) {
+    if (closed.length) {
+      html += `<div class="section-h closed">已封緘 (${closed.length}) — 含全部歷史</div>`;
+      html += closed.map(cardHTML).join('');
+    }
+  } else if (closedRecent.length || closedHidden.length) {
     html += `<div class="section-h closed">已封緘 ${closedRecent.length}${closedHidden.length ? ` <span style="color:var(--text2);font-size:18px;font-weight:500;">(另有 ${closedHidden.length} 件 3 天前的已自動隱藏)</span>` : ''}</div>`;
     html += closedRecent.map(cardHTML).join('');
     if (closedHidden.length) {
@@ -2260,7 +2451,13 @@ function setNotesCat(c) { state.notesFilter.cat = c; renderNotesPane(); }
 function switchTab(catId) {
   state.activeTab = catId;
   const cur = CATS.find(x => x.id === catId);
-  if (cur) document.getElementById('page-title').textContent = cur.label;
+  if (cur) {
+    document.getElementById('page-title').textContent = cur.label;
+    // 切到摺疊分組裡的項目時自動展開該分組
+    if (cur.group && state.collapsedGroups[cur.group]) {
+      state.collapsedGroups[cur.group] = false;
+    }
+  }
   renderTabs();
   renderPanes();
   // 手機:點分頁後捲到頂部

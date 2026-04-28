@@ -666,6 +666,8 @@ const CATS = [
   { id: 'trauma',    label: '無名/重創', hasTracking: true, timed: true },
   { id: 'clinical',  label: '臨床運作', hasTracking: true },
   { id: 'vip',       label: '交辦/VIP', hasTracking: true },
+  { id: 'mci',       label: 'MCI/新聞', hasTracking: true },
+  { id: 'infection', label: '感染管制', hasTracking: true },
   { id: 'announce',  label: '宣導事項', isAnnounce: true },
   { id: 'purchasing',label: '採購中',   isPurchasing: true },
   { id: 'search',    label: '搜尋',     isSearch: true },
@@ -939,6 +941,8 @@ const NAV_ICONS = {
   trauma:    '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
   clinical:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>',
   vip:       '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  mci:       '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  infection: '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/></svg>',
   announce:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17h-2c0-4.97-4.03-9-9-9V6h-1v2c-4.97 0-9 4.03-9 9H1"/><path d="M11 11v8a3 3 0 0 1-3 3v0a3 3 0 0 1-3-3v-8"/><line x1="11" y1="6" x2="11" y2="2"/></svg>',
   search:    '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
   purchasing:'<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>',
@@ -1779,7 +1783,7 @@ function staffInfoHTML(c) {
 }
 
 // ----- 附件區 -----
-const ATTACH_CATS = ['repair', 'event', 'clinical', 'trauma'];
+const ATTACH_CATS = ['repair', 'event', 'clinical', 'trauma', 'mci', 'infection'];
 
 function attachmentsHTML(c) {
   if (ATTACH_CATS.indexOf(c.cat) < 0) return '';
@@ -1789,14 +1793,24 @@ function attachmentsHTML(c) {
   const list = c.attachments || [];
   const editable = c.state !== 'closed';
 
-  // 性侵/家暴/兒虐 的提示文字加強
+  // 性侵/家暴/兒虐/MCI/感管 的提示文字加強
   const isLegal = c.cat === 'trauma' && ['性侵', '家暴', '兒虐'].indexOf(c.subType) >= 0;
-  const headerLabel = isLegal ? '📎 表單 / 證物照' : '📎 設備/現場照';
+  const isMci = c.cat === 'mci';
+  const isInfection = c.cat === 'infection';
+  const headerLabel =
+    isLegal ? '📎 表單 / 證物照' :
+    isMci ? '📎 公文 / 名單照片' :
+    isInfection ? '📎 通報單 / 文件' :
+    '📎 設備/現場照';
   const warnMessage = c.subType === '性侵'
     ? '⚠️ 嚴禁拍攝病人身體。僅可上傳採證套件、證物盒外觀、表單、轉介單。'
     : isLegal
       ? '⚠️ 僅上傳通報表單、轉介單。請勿上傳病人臉部、可識別個資。'
-      : '⚠️ 請勿上傳含病人姓名、病歷號之影像';
+      : isMci
+        ? '⚠️ 上傳前請確認文件不含可識別病人個資(姓名、病歷號可遮蓋)。'
+        : isInfection
+          ? '⚠️ 上傳通報單、感管文件。請勿上傳病人臉部影像。'
+          : '⚠️ 請勿上傳含病人姓名、病歷號之影像';
 
   return `<div class="attach">
     <div class="att-h">${headerLabel} (${list.length})
@@ -2103,7 +2117,7 @@ function progressHTML(p, caseId, caseClosed) {
 
 function actionsHTML(c) {
   // 哪些類別開放 AI 諮詢
-  const aiAdviceCats = ['event', 'complaint', 'clinical', 'vip'];
+  const aiAdviceCats = ['event', 'complaint', 'clinical', 'vip', 'mci', 'infection'];
   const showAiBtn = aiAdviceCats.indexOf(c.cat) >= 0;
   // 病人離院子類也要有
   const isRunaway = c.cat === 'event' && c.subType === '病人異常離院';
@@ -3420,6 +3434,53 @@ function openAddProgress(caseId) {
 }
 
 // ====== Modals: 新增案件 ======
+// 不同類別的 detail 預設範本(MCI/感管 因為要記錄多人,給結構化範本)
+function detailTemplate(catId) {
+  if (catId === 'mci') {
+    return `【事件經過】
+時間:
+地點:
+原因:
+
+
+【病人清單】
+編號 | 病歷號 | 簡要傷況 | 去向
+1 | | |
+2 | | |
+3 | | |
+
+(去向:留觀/檢查中/手術中/住院/轉ICU/出院/轉院/死亡)
+
+
+【媒體聯絡紀錄】
+(若為新聞案件:統一窗口、發言人、媒體名單)
+`;
+  }
+  if (catId === 'infection') {
+    return `【指標個案】
+病歷號:
+診斷:
+檢驗結果:
+首次發現時間:
+
+
+【接觸者清單】
+編號 | 病歷號/姓名 | 接觸日期 | 篩檢結果 | 去向
+1 | | | |
+2 | | | |
+3 | | | |
+
+(篩檢結果:陽性/陰性/未檢)
+(去向:留觀/隔離中/出院/住院/失聯)
+
+
+【隔離與清消措施】
+
+`;
+  }
+  return '';
+}
+
 function openAddCase(catId) {
   window._currentAddCat = catId; // for quickAdvice
   const cat = CATS.find(x => x.id === catId);
@@ -3431,6 +3492,8 @@ function openAddCase(catId) {
     trauma:    ['無名氏', '重大創傷', '兒虐', '家暴', '性侵'],
     clinical:  ['流程', 'SOP', '跨科協調', '其他'],
     vip:       ['VIP', '交辦', '長官關心'],
+    mci:       ['大量傷患 (MCI)', '新聞案件', '兩者皆是'],
+    infection: ['麻疹', '結核', '腸道感染', 'COVID/流感', '院內群聚', 'MDRO', '其他'],
   })[catId] || [];
 
   const isTrauma = catId === 'trauma';
@@ -3453,11 +3516,11 @@ function openAddCase(catId) {
       </div>
     ` : ''}
     <label>標題</label>
-    <input id="m-title" placeholder="簡短描述">
+    <input id="m-title" placeholder="${catId === 'mci' ? '例:11/15 國道車禍 8 名傷患' : catId === 'infection' ? '例:某某病人疑似活動性肺結核' : '簡短描述'}">
     <label>補充資訊(地點、單號、時間等)</label>
     <input id="m-meta" placeholder="例:急救 1 床 / 單號 R-2604-018">
     <label>詳情</label>
-    <textarea id="m-detail" placeholder="案件經過、目前狀況"></textarea>
+    <textarea id="m-detail" placeholder="案件經過、目前狀況" style="${catId === 'mci' || catId === 'infection' ? 'min-height:240px;' : ''}">${detailTemplate(catId)}</textarea>
     <label>優先度</label>
     <select id="m-priority">
       <option value="high">高</option>
@@ -3465,7 +3528,7 @@ function openAddCase(catId) {
       <option value="low">低</option>
     </select>
 
-    ${['event','complaint','clinical','vip'].indexOf(catId) >= 0 ? `
+    ${['event','complaint','clinical','vip','mci','infection'].indexOf(catId) >= 0 ? `
       <div class="quick-advice-wrap">
         <button type="button" id="quick-advice-btn" onclick="runQuickAdvice()"><span class="ai-tag">AI</span>快速看一下</button>
         <div style="font-size:14px;color:var(--text2);margin-top:4px;">AI 快速看標題+詳情,給優先度、checklist、風險提醒(可選)</div>
@@ -3611,6 +3674,23 @@ function defaultChecklist(catId, opts) {
       { id: 'briefed',     label: '通知主治、主任',     done: false },
       { id: 'monitored',   label: '每班定時關注',       done: false },
       { id: 'discharged',  label: '病人離院 / 轉出',    done: false },
+    ],
+    mci: [
+      { id: 'activated',   label: '啟動 MCI / 危機處理流程',     done: false },
+      { id: 'briefed',     label: '通知主治、主任、值班護理長', done: false },
+      { id: 'recorded',    label: '事件經過已詳細記錄',         done: false },
+      { id: 'patient_list',label: '病人清單建立(病歷號 + 去向)', done: false },
+      { id: 'media',       label: '媒體窗口/院方統一發言確認 (選填)', done: false, optional: true },
+      { id: 'reported',    label: '已彙整給主管 / 上級',        done: false },
+      { id: 'follow_up',   label: '後續追蹤完成',                done: false },
+    ],
+    infection: [
+      { id: 'index_case',  label: '指標個案紀錄(病歷號、診斷、檢驗)', done: false },
+      { id: 'reported_ic', label: '✅ 已通報感染管制',            done: false },
+      { id: 'contacts',    label: '接觸者清單建立',                done: false },
+      { id: 'isolation',   label: '隔離措施執行',                  done: false },
+      { id: 'cleaning',    label: '環境清消完成',                  done: false },
+      { id: 'follow_up',   label: '後續追蹤(篩檢結果)',          done: false },
     ],
   };
 

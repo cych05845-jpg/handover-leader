@@ -1274,11 +1274,32 @@ async function runMonthlyAnalysis() {
   target.innerHTML = html;
 }
 
+// 隱藏門檻:封緘超過 N 天的不顯示在分類分頁
+const HIDE_CLOSED_AFTER_DAYS = 3;
+
+// 判斷案件是否要在分類分頁隱藏
+function shouldHideClosed(c) {
+  if (c.state !== 'closed') return false;
+  if (!c.closedAt) return false;
+  const d = new Date(String(c.closedAt).replace(' ', 'T'));
+  if (isNaN(d)) return false;
+  const days = (Date.now() - d.getTime()) / 86400000;
+  return days > HIDE_CLOSED_AFTER_DAYS;
+}
+
+// 控制是否強制顯示某分類的所有已封緘
+const showAllClosed = {};
+
 function renderPane(catId) {
-  const items = state.cases.filter(x => x.cat === catId);
+  const items = state.cases.filter(x => x.cat === catId && String(x.deleted || '') !== 'yes');
   const pending = items.filter(x => x.state === 'pending_approval').sort((a,b) => String(b.created).localeCompare(String(a.created)));
-  const open    = items.filter(x => x.state === 'open').sort((a,b) => String(b.created).localeCompare(String(a.created)));
+  const open    = items.filter(x => x.state === 'open' || x.state === 'need_decision' || x.state === 'purchasing').sort((a,b) => String(b.created).localeCompare(String(a.created)));
   const closed  = items.filter(x => x.state === 'closed').sort((a,b) => String(b.closedAt||'').localeCompare(String(a.closedAt||'')));
+
+  // 3 天內封緘 vs 3 天前封緘
+  const closedRecent = closed.filter(c => !shouldHideClosed(c));
+  const closedHidden = closed.filter(c => shouldHideClosed(c));
+  const showAll = !!showAllClosed[catId];
 
   let html = '';
   if (pending.length) {
@@ -1288,11 +1309,29 @@ function renderPane(catId) {
   html += `<div class="section-h">未結案 (${open.length})</div>`;
   html += open.length ? open.map(cardHTML).join('') : '<div class="empty">沒有未結案件</div>';
   html += `<button class="add-btn" onclick="openAddCase('${catId}')">+ 新增${CATS.find(x=>x.id===catId).label}案件</button>`;
-  if (closed.length) {
-    html += `<div class="section-h closed">已封緘 (${closed.length})</div>`;
-    html += closed.map(cardHTML).join('');
+
+  if (closedRecent.length || closedHidden.length) {
+    html += `<div class="section-h closed">已封緘 ${closedRecent.length}${closedHidden.length ? ` <span style="color:var(--text2);font-size:18px;font-weight:500;">(另有 ${closedHidden.length} 件 3 天前的已自動隱藏)</span>` : ''}</div>`;
+    html += closedRecent.map(cardHTML).join('');
+    if (closedHidden.length) {
+      if (showAll) {
+        html += `<div style="text-align:center;margin:12px 0;">
+          <button onclick="toggleClosedHidden('${catId}')" style="background:transparent;color:var(--text2);">▴ 收合 ${closedHidden.length} 件 3 天前的封緘紀錄</button>
+        </div>`;
+        html += closedHidden.map(cardHTML).join('');
+      } else {
+        html += `<div style="text-align:center;margin:12px 0;">
+          <button onclick="toggleClosedHidden('${catId}')" style="background:transparent;color:var(--accent-d);font-size:18px;">▾ 顯示其他 ${closedHidden.length} 件已封緘紀錄(或用搜尋查詢)</button>
+        </div>`;
+      }
+    }
   }
   document.getElementById('pane-'+catId).innerHTML = html;
+}
+
+function toggleClosedHidden(catId) {
+  showAllClosed[catId] = !showAllClosed[catId];
+  renderPanes();
 }
 
 // 展開狀態存到 state(切分頁不會收起)
@@ -3017,14 +3056,15 @@ function renderSearchPane() {
           <div>
             <label>狀態</label>
             <select id="sn-state">
-              <option value="">全部狀態</option>
+              <option value="">全部狀態(不含 3 天前的封緘)</option>
               <option value="open">處理中</option>
               <option value="pending">待批准</option>
-              <option value="closed">已封緘</option>
+              <option value="closed">已封緘(含全部歷史)</option>
               <option value="archived">已歸檔</option>
             </select>
           </div>
         </div>
+        <div style="font-size:16px;color:var(--text2);margin-top:6px;">💡 選「已封緘」才會看到 3 天以前的歷史紀錄</div>
         <button class="primary" style="margin-top:14px;width:100%;font-size:21px;padding:12px;" onclick="doSearch()">🔎 搜尋</button>
       </div>
       <div id="search-results" style="margin-top:18px;"></div>

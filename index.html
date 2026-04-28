@@ -143,6 +143,51 @@
   }
   .pane-filter-clear:hover { background: var(--text); }
 
+  /* 語音輸入工具列 */
+  .voice-bar { display: flex; gap: 8px; margin-top: 6px; align-items: center; flex-wrap: wrap; }
+  .voice-btn {
+    background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+    color: #6d28d9;
+    border: 1px solid #c4b5fd;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s;
+    -webkit-user-select: none;
+  }
+  .voice-btn:hover { background: linear-gradient(135deg, #e9d5ff 0%, #ddd6fe 100%); }
+  .voice-btn:active, .voice-btn.recording {
+    background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+    color: #991b1b;
+    border-color: #ef4444;
+    transform: scale(0.97);
+    box-shadow: 0 0 0 4px rgba(239,68,68,0.2);
+  }
+  .voice-btn.recording { animation: voice-pulse 1.5s infinite; }
+  @keyframes voice-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+  }
+  .voice-ai-btn {
+    background: linear-gradient(135deg, #f0f8fc 0%, #e6f0fb 100%);
+    color: var(--blue-text);
+    border: 1px solid #b3d4f0;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 17px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .voice-ai-btn:hover { background: linear-gradient(135deg, #e6f0fb 0%, #d4e6f5 100%); }
+  .voice-hint { font-size: 14px; color: var(--text3); flex: 1; min-width: 200px; }
+  .voice-status { font-size: 16px; color: var(--text2); margin-top: 4px; min-height: 20px; }
+
   .sidebar-foot { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 18px; color: var(--text2-on-dark); }
   .sidebar-foot .who { color: var(--text-on-dark); font-weight: 600; font-size: 20px; }
   .sidebar-foot .role-tag { display: inline-block; padding: 1px 7px; background: rgba(0,166,160,0.2); color: var(--accent); border-radius: 10px; font-size: 15px; margin-left: 6px; font-weight: 600; }
@@ -2034,6 +2079,163 @@ function copyText(t) {
   navigator.clipboard.writeText(t).then(() => toast('已複製:' + t)).catch(() => toast('複製失敗'));
 }
 
+// ====== 語音輸入(Web Speech API + 可選 AI 整理) ======
+const _voice = { recognition: null, recording: false, targetId: null, originalText: '' };
+
+// 檢查瀏覽器支援
+function voiceSupported() {
+  return ('SpeechRecognition' in window) || ('webkitSpeechRecognition' in window);
+}
+
+// 渲染語音輸入按鈕(放在 textarea 下方)
+function voiceInputButtons(targetId, includeAi) {
+  if (!voiceSupported()) {
+    return `<div style="font-size:14px;color:var(--text3);margin-top:4px;">⚠️ 此瀏覽器不支援語音輸入(請用 Chrome/Edge)</div>`;
+  }
+  return `<div class="voice-bar">
+    <button type="button" class="voice-btn" id="voice-btn-${targetId}"
+            onmousedown="startVoice('${targetId}')" onmouseup="stopVoice()"
+            ontouchstart="startVoice('${targetId}', event)" ontouchend="stopVoice(event)"
+            oncontextmenu="return false;">
+      🎤 <span class="voice-btn-label">按住說話</span>
+    </button>
+    ${includeAi ? `<button type="button" class="voice-ai-btn" onclick="aiCleanText('${targetId}')">
+      <span class="ai-tag">AI</span>整理 + 去識別化
+    </button>` : ''}
+    <span class="voice-hint">說完鬆開即插入文字 · AI 整理會送 Gemini</span>
+  </div>
+  <div id="voice-status-${targetId}" class="voice-status"></div>`;
+}
+
+function startVoice(targetId, ev) {
+  if (ev) ev.preventDefault();
+  if (!voiceSupported()) { toast('瀏覽器不支援語音'); return; }
+  if (_voice.recording) return;
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR();
+  rec.lang = 'zh-TW';
+  rec.continuous = true;
+  rec.interimResults = true;
+
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  _voice.originalText = target.value;
+  _voice.targetId = targetId;
+  _voice.recognition = rec;
+  _voice.recording = true;
+
+  // 視覺回饋
+  const btn = document.getElementById('voice-btn-' + targetId);
+  if (btn) btn.classList.add('recording');
+  const status = document.getElementById('voice-status-' + targetId);
+  if (status) status.innerHTML = '🔴 錄音中... <span style="opacity:0.7;">說完鬆開按鈕</span>';
+
+  let finalTranscript = '';
+  let interimTranscript = '';
+
+  rec.onresult = (event) => {
+    interimTranscript = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const t = event.results[i][0].transcript;
+      if (event.results[i].isFinal) finalTranscript += t;
+      else interimTranscript += t;
+    }
+    // 即時更新 textarea(原文 + 已確認 + 暫存)
+    target.value = (_voice.originalText ? _voice.originalText + '\n' : '') + finalTranscript + interimTranscript;
+    // 顯示中間結果
+    if (status) status.innerHTML = `🔴 錄音中:<span style="color:var(--accent-d);">${escapeHtml(finalTranscript || interimTranscript || '...')}</span>`;
+  };
+
+  rec.onerror = (e) => {
+    console.error('Voice error:', e.error);
+    if (status) status.innerHTML = `<span style="color:var(--red-text);">⚠️ 錯誤:${e.error === 'not-allowed' ? '需要授權麥克風' : e.error}</span>`;
+    stopVoice();
+  };
+
+  rec.onend = () => {
+    if (_voice.recording) {
+      // 還在錄音狀態但 API 自動停了(例如靜音超時),嘗試重啟
+      try { rec.start(); } catch (e) { _voice.recording = false; }
+    }
+  };
+
+  try {
+    rec.start();
+  } catch (e) {
+    toast('語音啟動失敗');
+    _voice.recording = false;
+    if (btn) btn.classList.remove('recording');
+  }
+}
+
+function stopVoice(ev) {
+  if (ev) ev.preventDefault();
+  if (!_voice.recording) return;
+  _voice.recording = false;
+  try { _voice.recognition && _voice.recognition.stop(); } catch (e) {}
+  const btn = document.getElementById('voice-btn-' + _voice.targetId);
+  if (btn) btn.classList.remove('recording');
+  const status = document.getElementById('voice-status-' + _voice.targetId);
+  if (status) status.innerHTML = '✓ 已插入文字。可繼續講或點「AI 整理」';
+}
+
+// AI 整理 + 去識別化
+async function aiCleanText(targetId) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  const text = target.value.trim();
+  if (!text) { toast('沒有文字可整理'); return; }
+
+  if (!confirm(`要把以下文字送給 AI 整理 + 去識別化嗎?\n\n⚠️ 文字會傳到 Gemini 雲端。如果你打了精確的姓名/病歷號,AI 會嘗試替換為「個案」「床號 X」,但不保證 100% 過濾乾淨。\n\n按確定繼續。`)) return;
+
+  const status = document.getElementById('voice-status-' + targetId);
+  if (status) status.innerHTML = '<span class="ai-tag">AI</span>整理中...';
+
+  const r = await api('aiCleanText', { text });
+  if (!r || !r.ok) {
+    if (status) status.innerHTML = `<span style="color:var(--red-text);">${r ? escapeHtml(r.error) : '失敗'}</span>`;
+    return;
+  }
+
+  if (status) status.innerHTML = '';
+
+  // 顯示對照,讓使用者選擇要哪一份
+  const cleanedText = r.cleaned || '';
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <h2><span class="ai-tag ai-tag-lg">AI</span>整理結果</h2>
+        <div style="background:var(--accent-bg);color:var(--accent-d);padding:10px 14px;border-radius:8px;font-size:18px;margin-bottom:12px;line-height:1.5;">
+          ✨ AI 已整理結構並嘗試去識別化。請審核後決定要不要採用。
+        </div>
+        <label>原文(語音轉文字)</label>
+        <textarea readonly style="min-height:120px;background:var(--bg);color:var(--text2);">${escapeHtml(text)}</textarea>
+        <label style="margin-top:12px;">AI 整理後</label>
+        <textarea id="ai-cleaned-result" style="min-height:160px;font-size:21px;">${escapeHtml(cleanedText)}</textarea>
+        <div style="font-size:14px;color:var(--text3);margin-top:8px;line-height:1.5;">
+          💡 你可以在上方編輯後,選擇用整理版取代原文,或保留原文。
+        </div>
+        <div class="modal-actions">
+          <button onclick="closeModal()">保留原文</button>
+          <button class="primary" onclick="applyAiCleaned('${targetId}')">採用整理版</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function applyAiCleaned(targetId) {
+  const target = document.getElementById(targetId);
+  const newText = document.getElementById('ai-cleaned-result').value;
+  if (target) {
+    target.value = newText;
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  closeModal();
+  toast('已使用 AI 整理版本');
+}
+
 // 計算 case 自建立後過了幾天
 function daysSinceCreated(c) {
   if (!c.created) return 0;
@@ -3621,6 +3823,7 @@ function openAddProgress(caseId) {
   showModal('加註進度', `
     <label>進度內容</label>
     <textarea id="modal-text" placeholder="例:已聯絡廠商,預計明日到場"></textarea>
+    ${voiceInputButtons('modal-text', true)}
   `, async () => {
     const text = document.getElementById('modal-text').value.trim();
     if (!text) { toast('請輸入內容'); return false; }
@@ -3718,6 +3921,7 @@ function openAddCase(catId) {
     <input id="m-meta" placeholder="例:急救 1 床 / 單號 R-2604-018">
     <label>詳情</label>
     <textarea id="m-detail" placeholder="案件經過、目前狀況" style="${catId === 'mci' || catId === 'infection' ? 'min-height:240px;' : ''}">${detailTemplate(catId)}</textarea>
+    ${voiceInputButtons('m-detail', true)}
     <label>優先度</label>
     <select id="m-priority">
       <option value="high">高</option>

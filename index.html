@@ -78,6 +78,7 @@
   .nav-item.active .nav-icon { opacity: 1; }
   .nav-label { flex: 1; }
   .nav-badge { background: var(--red-text); color: #fff; font-size: 16px; padding: 1px 7px; border-radius: 10px; font-weight: 600; }
+  .nav-badge-purple { background: #7c3aed !important; }
 
   .sidebar-foot { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 18px; color: var(--text2-on-dark); }
   .sidebar-foot .who { color: var(--text-on-dark); font-weight: 600; font-size: 20px; }
@@ -327,6 +328,70 @@
   .qa-item.qa-warn { background: var(--amber-bg); border-color: var(--amber-bd); color: var(--amber-text); }
   .qa-item.qa-alert { background: var(--red-bg); border-color: var(--red-bd); color: var(--red-text); }
   .qa-apply { margin-left: 8px; padding: 3px 10px; font-size: 14px; background: var(--bg2); }
+
+  /* 採購中相關狀態樣式 */
+  .cs-status.st-disposal { background: linear-gradient(90deg, #e9d5ff 0%, #ddd6fe 100%); color: #6d28d9; border: 1px solid #c4b5fd; }
+  .card.need_decision { border-left: 4px solid #a16207; background: linear-gradient(180deg, #fffbeb 0%, var(--bg2) 100%); }
+  .card.purchasing { border-left: 4px solid #7c3aed; background: linear-gradient(180deg, #f5f3ff 0%, var(--bg2) 100%); }
+
+  /* 卡片頂部狀態橫條(批准 / 裁示 / 採購)*/
+  .approval-banner {
+    background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+    color: #92400e;
+    padding: 8px 14px;
+    border-radius: 8px 8px 0 0;
+    font-weight: 700;
+    font-size: 21px;
+    margin: -18px -20px 12px -20px;
+    border-bottom: 2px solid #f59e0b;
+    text-align: center;
+  }
+  .decision-banner {
+    background: linear-gradient(90deg, #fef3c7 0%, #fcd34d 100%);
+    color: #78350f;
+    padding: 8px 14px;
+    border-radius: 8px 8px 0 0;
+    font-weight: 700;
+    font-size: 21px;
+    margin: -18px -20px 12px -20px;
+    border-bottom: 2px solid #d97706;
+    text-align: center;
+  }
+  .purchasing-banner {
+    background: linear-gradient(90deg, #ede9fe 0%, #ddd6fe 100%);
+    color: #5b21b6;
+    padding: 8px 14px;
+    border-radius: 8px 8px 0 0;
+    font-weight: 700;
+    font-size: 21px;
+    margin: -18px -20px 12px -20px;
+    border-bottom: 2px solid #7c3aed;
+    text-align: center;
+  }
+
+  /* 待辦提醒橫條 */
+  .pending-bar-v2 { background: linear-gradient(90deg, #fff8e7 0%, #fffbeb 100%); border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 12px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .pb-label { font-size: 21px; font-weight: 700; color: #92400e; flex-shrink: 0; }
+  .pb-items { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+  .pb-item { font-size: 19px; padding: 6px 14px; border-radius: 999px; background: #fff; border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px; cursor: default; }
+  a.pb-item { cursor: pointer; transition: all 0.15s; }
+  a.pb-item:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.1); }
+  .pb-pending { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .pb-decision { background: #fef3c7; color: #a16207; border-color: #fcd34d; }
+  .pb-purchasing { background: #ede9fe; color: #6d28d9; border-color: #c4b5fd; }
+  .pb-overdue { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+  .pb-item strong { font-weight: 700; font-size: 22px; }
+
+  /* checklist 中的關鍵 action 項目(維修完成 / 已報廢) */
+  .ck.ck-action {
+    background: linear-gradient(90deg, #f0f8fc 0%, #e6f0fb 50%, transparent 100%);
+    border-left: 3px solid var(--accent);
+    padding-left: 10px;
+    border-radius: 0 6px 6px 0;
+    margin-top: 4px;
+  }
+  .ck.ck-action:hover { background: linear-gradient(90deg, #d4e6f5 0%, #c4d8ec 50%, transparent 100%); }
+  .ck.ck-action.done { background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 50%, transparent 100%); border-left-color: #059669; }
 
   .ai-section-concerns { background: var(--red-bg); border: 1px solid var(--red-bd); border-radius: 10px; padding: 12px 18px; }
   .ai-section-concerns h4 { color: var(--red-text); }
@@ -579,6 +644,7 @@ const CATS = [
   { id: 'clinical',  label: '臨床運作', hasTracking: true },
   { id: 'vip',       label: '交辦/VIP', hasTracking: true },
   { id: 'announce',  label: '宣導事項', isAnnounce: true },
+  { id: 'purchasing',label: '採購中',   isPurchasing: true },
   { id: 'search',    label: '搜尋',     isSearch: true },
   { id: 'stats',     label: '統計分析', isStats: true },
   { id: 'stats',     label: '統計分析', isStats: true },
@@ -754,6 +820,8 @@ function prioBadge(p) {
 function stateBadge(s) {
   if (s === 'pending_approval') return '<span class="badge b-amber">待批准</span>';
   if (s === 'closed') return '<span class="badge b-green">已封緘</span>';
+  if (s === 'need_decision') return '<span class="badge" style="background:#fef3c7;color:#a16207;border:1px solid #fcd34d;">等護理長裁示</span>';
+  if (s === 'purchasing') return '<span class="badge" style="background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;">採購中</span>';
   return '';
 }
 function tierBadge(t) {
@@ -800,15 +868,42 @@ function renderSummary() {
 }
 
 function renderPendingBar() {
-  const pending = state.cases.filter(x => x.state === 'pending_approval');
-  if (!pending.length) { document.getElementById('pending-bar').innerHTML = ''; return; }
-  const tip = isApprover()
-    ? `<button onclick="switchToFirstPending()">前往批准</button>`
-    : `<span style="font-size: 18px;">等待護理長/副護理長批准</span>`;
+  const cs = state.cases.filter(x => String(x.deleted || '') !== 'yes');
+  const pending = cs.filter(x => x.state === 'pending_approval').length;
+  const needDecision = cs.filter(x => x.state === 'need_decision').length;
+  const purchasing = cs.filter(x => x.state === 'purchasing').length;
+  // 逾期:open 狀態 + 7+ 天沒更新
+  const now = Date.now();
+  const overdue = cs.filter(x => {
+    if (x.state !== 'open') return false;
+    if (!x.updatedAt) return false;
+    const d = new Date(String(x.updatedAt).replace(' ', 'T'));
+    return !isNaN(d) && (now - d.getTime()) > 7 * 86400000;
+  }).length;
+
+  const total = pending + needDecision + purchasing + overdue;
+  if (!total) { document.getElementById('pending-bar').innerHTML = ''; return; }
+
+  const items = [];
+  if (pending > 0) {
+    items.push(isApprover()
+      ? `<a class="pb-item pb-pending" onclick="switchToFirstPending()">⏸ 待批准 <strong>${pending}</strong></a>`
+      : `<span class="pb-item pb-pending">⏸ 待批准 <strong>${pending}</strong></span>`);
+  }
+  if (needDecision > 0) {
+    items.push(`<a class="pb-item pb-decision" onclick="switchTab('purchasing')">🛒 等下單 <strong>${needDecision}</strong></a>`);
+  }
+  if (purchasing > 0) {
+    items.push(`<a class="pb-item pb-purchasing" onclick="switchTab('purchasing')">📦 等貨到 <strong>${purchasing}</strong></a>`);
+  }
+  if (overdue > 0) {
+    items.push(`<span class="pb-item pb-overdue">🚨 逾期 7 天 <strong>${overdue}</strong></span>`);
+  }
+
   document.getElementById('pending-bar').innerHTML = `
-    <div class="pending-bar">
-      <span><strong>${pending.length}</strong> 件案件待批准封緘</span>
-      ${tip}
+    <div class="pending-bar-v2">
+      <div class="pb-label">🔔 你今天的待辦</div>
+      <div class="pb-items">${items.join('')}</div>
     </div>`;
 }
 
@@ -823,6 +918,7 @@ const NAV_ICONS = {
   vip:       '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
   announce:  '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17h-2c0-4.97-4.03-9-9-9V6h-1v2c-4.97 0-9 4.03-9 9H1"/><path d="M11 11v8a3 3 0 0 1-3 3v0a3 3 0 0 1-3-3v-8"/><line x1="11" y1="6" x2="11" y2="2"/></svg>',
   search:    '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  purchasing:'<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>',
   stats:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
   stats:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
   notes:     '<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
@@ -834,15 +930,23 @@ const NAV_ICONS = {
 function renderTabs() {
   document.getElementById('sidebar-nav').innerHTML = CATS.map(c => {
     let badge = 0;
+    let badgeClass = '';
     if (c.hasTracking) {
       badge = state.cases.filter(x => x.cat === c.id && x.state !== 'closed' && String(x.deleted || '') !== 'yes').length;
     } else if (c.isAnnounce) {
       badge = announceCount();
+    } else if (c.isPurchasing) {
+      badge = state.cases.filter(x =>
+        (x.state === 'need_decision' || x.state === 'purchasing' ||
+         (x.state === 'pending_approval' && String(x.waitingFor || '').indexOf('已到貨') >= 0)) &&
+        String(x.deleted || '') !== 'yes'
+      ).length;
+      badgeClass = 'nav-badge-purple';
     }
     return `<div class="nav-item ${state.activeTab === c.id ? 'active' : ''}" onclick="switchTab('${c.id}')">
       ${NAV_ICONS[c.id] || ''}
       <span class="nav-label">${c.label}</span>
-      ${badge ? `<span class="nav-badge">${badge}</span>` : ''}
+      ${badge ? `<span class="nav-badge ${badgeClass}">${badge}</span>` : ''}
     </div>`;
   }).join('');
   // 同步頂部標題
@@ -861,6 +965,7 @@ function renderPanes() {
   else if (cat.isAnnounce) renderAnnouncePane();
   else if (cat.isStats) renderStatsPane();
   else if (cat.isSearch) renderSearchPane();
+  else if (cat.isPurchasing) renderPurchasingPane();
   else renderPane(catId);
 }
 
@@ -896,6 +1001,58 @@ function renderAnnouncePane() {
     </div>
   `;
   html += items.map(c => cardHTML(c)).join('');
+  root.innerHTML = html;
+}
+
+// ====== 採購中分頁 ======
+function renderPurchasingPane() {
+  const cs = state.cases.filter(c => String(c.deleted || '') !== 'yes');
+
+  // 等下單裁示(state = need_decision)
+  const decision = cs.filter(c => c.state === 'need_decision')
+    .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
+
+  // 已採購,等到貨(state = purchasing,waitingFor 是「已採購,等到貨」)
+  const purchased = cs.filter(c => c.state === 'purchasing')
+    .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
+
+  // 已到貨,等批准(state = pending_approval 且來自採購流程,以 progress 判斷)
+  // 簡化:看 waitingFor 是「已到貨,等批准」的 pending_approval 案件
+  const arrived = cs.filter(c =>
+    c.state === 'pending_approval' &&
+    String(c.waitingFor || '').indexOf('已到貨') >= 0
+  ).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+
+  const root = document.getElementById('pane-purchasing');
+  if (!decision.length && !purchased.length && !arrived.length) {
+    root.innerHTML = `
+      <div style="background:var(--accent-bg);color:var(--accent-d);padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:21px;line-height:1.6;">
+        🛒 <strong>採購中</strong>分頁顯示需要你裁示的採購案件,以及已下單等貨到的案件。<br>
+        當人員回報「已報廢,建議採購」時案件會自動進到這裡。
+      </div>
+      <div class="empty">目前沒有採購相關案件</div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div style="background:#fef3c7;color:#92400e;padding:10px 16px;border-radius:8px;margin-bottom:14px;font-size:18px;">
+      💡 採購流程:<strong>等下單裁示</strong> → <strong>已採購</strong> → <strong>已到貨,等批准</strong> → 封緘
+    </div>
+  `;
+
+  if (decision.length) {
+    html += `<div class="section-h" style="color:#a16207;">⏸ 等護理長裁示是否採購 (${decision.length})</div>`;
+    html += decision.map(c => cardHTML(c)).join('');
+  }
+  if (purchased.length) {
+    html += `<div class="section-h" style="color:#7c3aed;margin-top:18px;">🛒 已採購,等到貨 (${purchased.length})</div>`;
+    html += purchased.map(c => cardHTML(c)).join('');
+  }
+  if (arrived.length) {
+    html += `<div class="section-h" style="color:#059669;margin-top:18px;">📦 已到貨,等批准 (${arrived.length})</div>`;
+    html += arrived.map(c => cardHTML(c)).join('');
+  }
   root.innerHTML = html;
 }
 
@@ -1166,7 +1323,11 @@ function timeAgo(dateStr) {
 }
 
 function cardHTML(c) {
-  const stateClass = c.state === 'pending_approval' ? 'pending' : c.state === 'closed' ? 'closed' : '';
+  const stateClass = c.state === 'pending_approval' ? 'pending'
+                   : c.state === 'closed' ? 'closed'
+                   : c.state === 'need_decision' ? 'need_decision'
+                   : c.state === 'purchasing' ? 'purchasing'
+                   : '';
   const tierClass = (c.tier === 2 || c.tier === '2') ? 'tier2' : '';
   const runawayClass = (c.cat === 'event' && c.subType === '病人離院') ? 'runaway' : '';
   const isExpanded = state.expanded.has(c.id);
@@ -1196,6 +1357,12 @@ function cardHTML(c) {
 
     ${announce ? `<div class="announce-banner">🔔 交班需口頭宣導</div>` : ''}
 
+    ${c.state === 'pending_approval' ? `<div class="approval-banner">${isApprover() ? `⏸ 等你批准 → 封緘${c.waitingFor && c.waitingFor !== '處理中' ? ` <span style="opacity:0.8;font-weight:500;">(${escapeHtml(c.waitingFor)})</span>` : ''}` : `⏸ 等護理長/副護理長批准 → 封緘`}</div>` : ''}
+
+    ${c.state === 'need_decision' ? `<div class="decision-banner">${isApprover() ? `⏳ 等你裁示是否採購` : `⏳ 等護理長裁示`}</div>` : ''}
+
+    ${c.state === 'purchasing' ? `<div class="purchasing-banner">🛒 已採購</div>` : ''}
+
     <!-- 摘要區(永遠顯示)-->
     <div class="card-summary">
       <div class="cs-line1">
@@ -1206,7 +1373,7 @@ function cardHTML(c) {
       </div>
 
       <div class="cs-line2">
-        <span class="cs-status ${statusClass(c.waitingFor)}" onclick="event.stopPropagation();openStatusPicker('${c.id}')">${statusIcon(c.waitingFor)} ${escapeHtml(c.waitingFor || '處理中')} ▾</span>
+        <span class="cs-status ${statusClass(c.waitingFor)}" onclick="event.stopPropagation();openStatusPicker('${c.id}')">${statusIcon(c.waitingFor)} ${escapeHtml(shortStatus(c.waitingFor))} ▾</span>
         <span class="cs-time">⏱ ${escapeHtml(updateAgo)}${stale ? ` <span class="cs-stale-tag">${daysOld} 天未動</span>` : ''}</span>
         ${total > 0 ? `<span class="cs-progress-text">${done}/${total}</span>` : ''}
         ${stateBadge(c.state)}
@@ -1260,13 +1427,13 @@ function affiliationBadge(c) {
 
 // ====== 案件狀態(已做了什麼裁決)======
 const STATUS_OPTIONS = [
-  { value: '處理中',         icon: '🟢', cls: 'st-active' },
-  { value: '已通報主管',     icon: '📢', cls: 'st-wait' },
-  { value: '已反映給',       icon: '↪️', cls: 'st-wait', needsTarget: true },
-  { value: '已採購',         icon: '🛒', cls: 'st-wait' },
-  { value: '等單',           icon: '📋', cls: 'st-wait' },
-  { value: '釐清中',         icon: '🔍', cls: 'st-wait' },
-  { value: '完成,等批准',   icon: '✅', cls: 'st-done' },
+  { value: '處理中',             icon: '🟢', cls: 'st-active' },
+  { value: '已通報主管',         icon: '📢', cls: 'st-wait' },
+  { value: '已反映給',           icon: '↪️', cls: 'st-wait', needsTarget: true },
+  { value: '等單',               icon: '📋', cls: 'st-wait' },
+  { value: '釐清中',             icon: '🔍', cls: 'st-wait' },
+  { value: '已報廢,建議採購',   icon: '♻️', cls: 'st-disposal', triggers: 'need_decision' },
+  { value: '完成,等批准',       icon: '✅', cls: 'st-done',     triggers: 'submit' },
 ];
 
 function statusIcon(s) {
@@ -1275,6 +1442,19 @@ function statusIcon(s) {
   const base = String(s).split(':')[0].split(':')[0];
   const opt = STATUS_OPTIONS.find(x => x.value === base);
   return opt ? opt.icon : '🔧';
+}
+
+// 縮短顯示 — 去掉「,等XX」這種冗詞
+function shortStatus(s) {
+  if (!s) return '處理中';
+  const map = {
+    '已採購,等到貨': '已採購',
+    '已到貨,等批准': '已到貨',
+    '不採購,等批准': '不採購',
+    '完成,等批准': '完成',
+    '已報廢,建議採購': '建議採購',
+  };
+  return map[s] || s;
 }
 
 function statusClass(s) {
@@ -1319,8 +1499,25 @@ function pickStatusWithTarget(caseId, baseLabel) {
 
 async function setStatus(caseId, value) {
   closeModal();
-  const r = await api('updateCase', { caseId, updates: { waitingFor: value } });
-  if (r && r.ok) { toast(`狀態:${value}`); refreshAll(); }
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+
+  const updates = { waitingFor: value };
+  let toastMsg = `狀態:${value}`;
+
+  // 「已報廢,建議採購」 → state 改為 need_decision(等護理長裁示)
+  if (value === '已報廢,建議採購' && c.state === 'open') {
+    updates.state = 'need_decision';
+    toastMsg = '已建議報廢採購,等護理長裁示';
+  }
+  // 「完成,等批准」 → state 改為 pending_approval
+  else if (value === '完成,等批准' && c.state === 'open') {
+    updates.state = 'pending_approval';
+    toastMsg = '已送批准,等護理長確認';
+  }
+
+  const r = await api('updateCase', { caseId, updates });
+  if (r && r.ok) { toast(toastMsg); refreshAll(); }
   else toast(r ? r.error : '更新失敗');
 }
 
@@ -1546,24 +1743,45 @@ function isOverdueItem(c, itemId) {
   return daysSinceCreated(c) > rule.days;
 }
 
+// 把舊的請修 checklist 遷移成新的
+function migrateRepairChecklist(c) {
+  if (c.cat !== 'repair' || !c.checklist) return c.checklist;
+  const cl = c.checklist;
+  const hasOldResult = cl.some(it => it.id === 'result');
+  const hasOldPurchase = cl.some(it => it.id === 'purchase');
+  if (!hasOldResult && !hasOldPurchase) return cl;
+  // 有舊 id,做遷移
+  return cl.map(it => {
+    if (it.id === 'result') return { ...it, id: 'completed', label: '維修完成' };
+    if (it.id === 'purchase') return { ...it, id: 'disposal', label: '已報廢,等採購' };
+    return it;
+  });
+}
+
 function checklistHTML(c) {
-  if (!c.checklist || !c.checklist.length) return '';
+  // 顯示前先做遷移(舊案件的 checklist 也能看到新標籤)
+  const checklist = migrateRepairChecklist(c);
+  if (!checklist || !checklist.length) return '';
   const disabled = c.state === 'closed';
   const days = daysSinceCreated(c);
   const rule = OVERDUE_RULES[c.cat];
   const hasAnyOverdue = rule && c.state !== 'closed' &&
-    c.checklist.some(it => rule.items.indexOf(it.id) >= 0 && !it.done && days > rule.days);
+    checklist.some(it => rule.items.indexOf(it.id) >= 0 && !it.done && days > rule.days);
 
   return `<div class="checklist">
     ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,PDCA / 追蹤單逾期未完成,請盡速催開</div>` : ''}
-    ${c.checklist.map(it => {
+    ${checklist.map(it => {
       const overdue = !it.done && isOverdueItem(c, it.id);
       const cls = ['ck'];
       if (it.done) cls.push('done');
       if (overdue) cls.push('overdue');
+      // 重要 checkbox 加視覺強調
+      if (c.cat === 'repair' && (it.id === 'completed' || it.id === 'disposal')) {
+        cls.push('ck-action');
+      }
       return `<div class="${cls.join(' ')}" ${disabled ? '' : `onclick="toggleCheck('${c.id}','${it.id}')"`}>
         <span class="dot"></span>
-        <span>${escapeHtml(it.label)}${overdue ? ` <span class="ck-tag">逾期 ${days - rule.days} 天</span>` : ''}${it.note ? ` — <em style="color:var(--text2);font-style:normal;">${escapeHtml(it.note)}</em>` : ''}</span>
+        <span>${escapeHtml(it.label)}${overdue ? ` <span class="ck-tag">逾期 ${days - rule.days} 天</span>` : ''}${it.note ? ` — <em style="color:var(--text2);font-style:normal;">${escapeHtml(it.note)}</em>` : ''}${c.cat === 'repair' && it.id === 'completed' && !it.done ? ' <span style="color:var(--accent-d);font-size:16px;">→ 勾起來自動送批准</span>' : ''}${c.cat === 'repair' && it.id === 'disposal' && !it.done ? ' <span style="color:#a16207;font-size:16px;">→ 勾起來等護理長裁示</span>' : ''}</span>
       </div>`;
     }).join('')}
   </div>`;
@@ -1610,6 +1828,26 @@ function actionsHTML(c) {
   // 病人離院子類也要有
   const isRunaway = c.cat === 'event' && c.subType === '病人離院';
 
+  // 等護理長裁示(報廢採購建議)
+  if (c.state === 'need_decision') {
+    return `<div class="actions">
+      ${isApprover()
+        ? `<button class="primary" onclick="approveDisposal('${c.id}')">同意採購,進採購中</button><button onclick="rejectDisposal('${c.id}')">不採購,直接結案</button><button onclick="returnDisposal('${c.id}')">退回繼續處理</button>`
+        : `<button disabled>等護理長裁示中...</button>`}
+      <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
+    </div>`;
+  }
+
+  // 採購中
+  if (c.state === 'purchasing') {
+    return `<div class="actions">
+      <button onclick="openAddProgress('${c.id}')">加註進度(例:廠商已下單)</button>
+      <button class="primary" onclick="goodsArrived('${c.id}')">📦 貨到了 → 送批准</button>
+      <button class="${announce(c) ? 'announce-btn-active' : ''}" onclick="toggleAnnounce('${c.id}')">${announce(c) ? '🔔 已標宣導' : '🔔 標為宣導'}</button>
+      <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
+    </div>`;
+  }
+
   if (c.state === 'pending_approval') {
     return `<div class="actions">
       ${isApprover()
@@ -1621,16 +1859,69 @@ function actionsHTML(c) {
     </div>`;
   }
   const ready = allChecked(c);
-  const announce = !!(c.flags && c.flags.announce);
+  const announce_flag = announce(c);
   return `<div class="actions">
     <button onclick="openAddProgress('${c.id}')">加註進度</button>
-    <button class="${announce ? 'announce-btn-active' : ''}" onclick="toggleAnnounce('${c.id}')">${announce ? '🔔 已標宣導' : '🔔 標為宣導'}</button>
+    <button class="${announce_flag ? 'announce-btn-active' : ''}" onclick="toggleAnnounce('${c.id}')">${announce_flag ? '🔔 已標宣導' : '🔔 標為宣導'}</button>
     ${showAiBtn || isRunaway ? `<button onclick="openCaseAdvice('${c.id}')"><span class="ai-tag">AI</span>諮詢建議</button>` : ''}
     ${c.cat === 'complaint' && (c.tier === 1 || c.tier === '1') ? `<button class="danger" onclick="escalateTier('${c.id}')">升 Tier 2</button>` : ''}
     ${c.cat === 'complaint' && (c.tier === 2 || c.tier === '2') ? `<button class="danger" onclick="convertToEvent('${c.id}')">轉重大異常</button>` : ''}
     <button class="${ready ? 'primary' : ''}" onclick="submitForApproval('${c.id}')">送批准</button>
     <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
   </div>`;
+}
+
+// 小 helper:檢查是否標宣導
+function announce(c) {
+  return !!(c.flags && c.flags.announce);
+}
+
+// 同意採購 → state: purchasing,waitingFor: 已採購,等到貨
+async function approveDisposal(caseId) {
+  if (!confirm('同意採購?\n\n案件會進入「已採購,等到貨」狀態。\n採購到貨後人員按「貨到了」即可送批准。')) return;
+  const r = await api('updateCase', { caseId, updates: { state: 'purchasing', waitingFor: '已採購,等到貨' } });
+  if (r && r.ok) {
+    appendProgressNote(caseId, '✅ 護理長同意報廢採購,已下單');
+    toast('已進入「已採購」');
+    refreshAll();
+  } else toast(r ? r.error : '失敗');
+}
+
+// 不採購直接結案
+async function rejectDisposal(caseId) {
+  if (!confirm('不採購,直接結案?\n\n案件會進入待批准狀態,你再點批准封緘即可。')) return;
+  const r = await api('updateCase', { caseId, updates: { state: 'pending_approval', waitingFor: '不採購,等批准' } });
+  if (r && r.ok) {
+    appendProgressNote(caseId, '🚫 護理長裁示不採購,直接結案');
+    toast('已送批准');
+    refreshAll();
+  } else toast(r ? r.error : '失敗');
+}
+
+// 退回給人員繼續處理
+async function returnDisposal(caseId) {
+  if (!confirm('退回繼續處理?\n\n案件回到原本狀態,人員可以再聯絡別家或重新處理。')) return;
+  const r = await api('updateCase', { caseId, updates: { state: 'open', waitingFor: '處理中' } });
+  if (r && r.ok) {
+    appendProgressNote(caseId, '↩️ 護理長退回繼續處理');
+    toast('已退回');
+    refreshAll();
+  } else toast(r ? r.error : '失敗');
+}
+
+// 採購中 → 貨到 → 送批准
+async function goodsArrived(caseId) {
+  const noteText = prompt('簡短說明貨到狀況(例:廠商 4/30 送達、品牌型號)');
+  if (noteText === null) return;
+  await appendProgressNote(caseId, `📦 貨到:${noteText || '已到貨'}`);
+  const r = await api('updateCase', { caseId, updates: { state: 'pending_approval', waitingFor: '已到貨,等批准' } });
+  if (r && r.ok) { toast('已送批准'); refreshAll(); }
+  else toast(r ? r.error : '失敗');
+}
+
+// 通用:加一筆 progress
+async function appendProgressNote(caseId, text) {
+  return api('addProgress', { caseId, text });
 }
 
 // ====== Notes ======
@@ -1687,8 +1978,25 @@ function switchToFirstPending() {
 }
 
 async function toggleCheck(caseId, itemId) {
+  const c = state.cases.find(x => x.id === caseId);
+  const wasOpen = c && c.state === 'open';
+  const item = c && (c.checklist || []).find(it => it.id === itemId);
+  const willCheck = item && !item.done; // 即將被勾起來
+
   const r = await api('toggleCheck', { caseId, itemId });
-  if (r && r.ok) refreshAll();
+  if (r && r.ok) {
+    // 在請修案件勾這兩個關鍵 checkbox 時,給明顯提示
+    if (c && c.cat === 'repair' && wasOpen && willCheck) {
+      if (itemId === 'completed') toast('✅ 維修完成,已自動送批准');
+      else if (itemId === 'disposal') toast('♻️ 已報廢,等護理長裁示是否採購');
+    }
+    // 取消勾選關鍵 checkbox
+    if (c && c.cat === 'repair' && !willCheck) {
+      if (itemId === 'completed' && c.state === 'pending_approval') toast('已取消維修完成,案件回到處理中');
+      else if (itemId === 'disposal' && c.state === 'need_decision') toast('已取消報廢建議,案件回到處理中');
+    }
+    refreshAll();
+  }
 }
 
 async function takeOver(caseId) {
@@ -1700,9 +2008,15 @@ async function takeOver(caseId) {
 
 async function submitForApproval(caseId) {
   const c = state.cases.find(x => x.id === caseId);
-  if (!allChecked(c)) { toast('Checklist 尚未全部完成'); return; }
+  if (!c) return;
+  // checklist 沒勾完只是提醒,不擋
+  if (!allChecked(c)) {
+    const cl = c.checklist || [];
+    const undone = cl.filter(it => !it.done).length;
+    if (!confirm(`Checklist 還有 ${undone} 項未勾選,確定送批准?\n\n護理長可在批准時自行裁示。`)) return;
+  }
   const r = await api('submitForApproval', { caseId });
-  if (r && r.ok) refreshAll();
+  if (r && r.ok) { toast('已送批准'); refreshAll(); }
   else toast(r ? r.error : '失敗');
 }
 
@@ -2983,10 +3297,10 @@ function defaultChecklist(catId, opts) {
 
   const lists = {
     repair: [
-      { id: 'submit',   label: '已開請修單',           done: false },
-      { id: 'process',  label: '處理中',               done: false },
-      { id: 'result',   label: '維修完成或報廢確認',   done: false },
-      { id: 'purchase', label: '若報廢→購買到貨',     done: false },
+      { id: 'submit',     label: '已開請修單',       done: false },
+      { id: 'process',    label: '處理中',           done: false },
+      { id: 'completed',  label: '維修完成',         done: false },
+      { id: 'disposal',   label: '已報廢,等採購',   done: false },
     ],
     event: [
       { id: 'reported',     label: '班內主管知會',          done: false },

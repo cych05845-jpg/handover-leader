@@ -188,6 +188,43 @@
   .voice-hint { font-size: 14px; color: var(--text3); flex: 1; min-width: 200px; }
   .voice-status { font-size: 16px; color: var(--text2); margin-top: 4px; min-height: 20px; }
 
+  /* AI 整理結果內嵌框 */
+  .ai-clean-box {
+    background: linear-gradient(180deg, #f0f8fc 0%, #e6f0fb 100%);
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-top: 12px;
+    box-shadow: 0 4px 12px rgba(0,166,160,0.15);
+    animation: ai-clean-pop 0.25s ease-out;
+  }
+  @keyframes ai-clean-pop {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .ai-clean-h {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--accent-d);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ai-clean-close {
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 50%;
+  }
+  .ai-clean-close:hover { background: rgba(0,0,0,0.05); color: var(--text); }
+
   .sidebar-foot { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 18px; color: var(--text2-on-dark); }
   .sidebar-foot .who { color: var(--text-on-dark); font-weight: 600; font-size: 20px; }
   .sidebar-foot .role-tag { display: inline-block; padding: 1px 7px; background: rgba(0,166,160,0.2); color: var(--accent); border-radius: 10px; font-size: 15px; margin-left: 6px; font-weight: 600; }
@@ -1304,15 +1341,18 @@ let _statsRange = 30;  // 預設 30 天
 
 async function renderStatsPane() {
   const root = document.getElementById('pane-stats');
+  const rangeLabel = _statsRange === 7 ? '7 天' : _statsRange === 30 ? '30 天' : _statsRange === 90 ? '90 天' : _statsRange === 180 ? '半年' : _statsRange === 365 ? '一年' : `${_statsRange} 天`;
   root.innerHTML = `
     <div class="stats-toolbar">
       <div class="stats-range">
         <button onclick="setStatsRange(7)" class="${_statsRange===7?'primary':''}">過去 7 天</button>
         <button onclick="setStatsRange(30)" class="${_statsRange===30?'primary':''}">過去 30 天</button>
         <button onclick="setStatsRange(90)" class="${_statsRange===90?'primary':''}">過去 90 天</button>
+        <button onclick="setStatsRange(180)" class="${_statsRange===180?'primary':''}">半年</button>
+        <button onclick="setStatsRange(365)" class="${_statsRange===365?'primary':''}">一年</button>
       </div>
       <button class="primary" onclick="runMonthlyAnalysis()" style="padding:10px 18px;">
-        <span class="ai-tag">AI</span>月度分析(過去 ${_statsRange} 天)
+        <span class="ai-tag">AI</span>分析(過去 ${rangeLabel})
       </button>
     </div>
     <div id="stats-content"><div class="loading">載入統計...</div></div>
@@ -1443,7 +1483,7 @@ async function runMonthlyAnalysis() {
   const a = r.analysis;
   let html = `
     <div class="ai-result">
-      <div class="ai-meta"><span class="ai-tag">AI</span>分析結果 · ${r.meta.caseCount} 件案件 · ${r.meta.generatedAt}</div>
+      <div class="ai-meta"><span class="ai-tag">AI</span>分析結果 · ${r.meta.truncated ? `${r.meta.caseCount}/${r.meta.totalFound} 件(因案件多,只分析最新 ${r.meta.caseCount} 件)` : `${r.meta.caseCount} 件案件`} · ${r.meta.generatedAt}</div>
 
       <div class="ai-headline">${escapeHtml(a.headline || '')}</div>
 
@@ -2200,40 +2240,58 @@ async function aiCleanText(targetId) {
 
   if (status) status.innerHTML = '';
 
-  // 顯示對照,讓使用者選擇要哪一份
+  // 內嵌顯示在原 textarea 下方(不開新 modal,避免關掉父 modal)
   const cleanedText = r.cleaned || '';
-  const root = document.getElementById('modal-root');
-  root.innerHTML = `
-    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
-      <div class="modal">
-        <h2><span class="ai-tag ai-tag-lg">AI</span>整理結果</h2>
-        <div style="background:var(--accent-bg);color:var(--accent-d);padding:10px 14px;border-radius:8px;font-size:18px;margin-bottom:12px;line-height:1.5;">
-          ✨ AI 已整理結構並嘗試去識別化。請審核後決定要不要採用。
-        </div>
-        <label>原文(語音轉文字)</label>
-        <textarea readonly style="min-height:120px;background:var(--bg);color:var(--text2);">${escapeHtml(text)}</textarea>
-        <label style="margin-top:12px;">AI 整理後</label>
-        <textarea id="ai-cleaned-result" style="min-height:160px;font-size:21px;">${escapeHtml(cleanedText)}</textarea>
-        <div style="font-size:14px;color:var(--text3);margin-top:8px;line-height:1.5;">
-          💡 你可以在上方編輯後,選擇用整理版取代原文,或保留原文。
-        </div>
-        <div class="modal-actions">
-          <button onclick="closeModal()">保留原文</button>
-          <button class="primary" onclick="applyAiCleaned('${targetId}')">採用整理版</button>
-        </div>
-      </div>
-    </div>`;
+  const cleanedId = 'ai-cleaned-' + targetId;
+
+  // 移除舊的 (如果重複點)
+  const old = document.getElementById('ai-clean-box-' + targetId);
+  if (old) old.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'ai-clean-box-' + targetId;
+  wrap.className = 'ai-clean-box';
+  wrap.innerHTML = `
+    <div class="ai-clean-h">
+      <span class="ai-tag ai-tag-lg">AI</span>整理結果(請審核)
+      <button type="button" class="ai-clean-close" onclick="closeAiClean('${targetId}')">×</button>
+    </div>
+    <div style="background:var(--accent-bg);color:var(--accent-d);padding:8px 12px;border-radius:6px;font-size:16px;margin-bottom:8px;line-height:1.5;">
+      ✨ 已嘗試去識別化(姓名/病歷號替換)。可編輯後採用,或保留原文。
+    </div>
+    <textarea id="${cleanedId}" style="min-height:140px;font-size:19px;width:100%;">${escapeHtml(cleanedText)}</textarea>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button type="button" class="primary" onclick="applyAiCleaned('${targetId}')">✓ 採用此版,覆蓋原文</button>
+      <button type="button" onclick="closeAiClean('${targetId}')">保留原文</button>
+    </div>
+  `;
+
+  // 插在 textarea 之後(語音工具列的下面)
+  const voiceStatus = document.getElementById('voice-status-' + targetId);
+  if (voiceStatus && voiceStatus.parentNode) {
+    voiceStatus.parentNode.insertBefore(wrap, voiceStatus.nextSibling);
+  } else if (target.parentNode) {
+    target.parentNode.insertBefore(wrap, target.nextSibling);
+  }
+
+  // 滾到可見位置
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function applyAiCleaned(targetId) {
   const target = document.getElementById(targetId);
-  const newText = document.getElementById('ai-cleaned-result').value;
-  if (target) {
-    target.value = newText;
-    target.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-  closeModal();
+  const cleanedId = 'ai-cleaned-' + targetId;
+  const cleanedEl = document.getElementById(cleanedId);
+  if (!target || !cleanedEl) return;
+  target.value = cleanedEl.value;
+  target.dispatchEvent(new Event('input', { bubbles: true }));
+  closeAiClean(targetId);
   toast('已使用 AI 整理版本');
+}
+
+function closeAiClean(targetId) {
+  const box = document.getElementById('ai-clean-box-' + targetId);
+  if (box) box.remove();
 }
 
 // 計算 case 自建立後過了幾天

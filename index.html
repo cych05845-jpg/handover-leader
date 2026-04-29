@@ -225,6 +225,76 @@
   }
   .ai-clean-close:hover { background: rgba(0,0,0,0.05); color: var(--text); }
 
+  /* ===== 新版 Picker ===== */
+  .picker-section-h {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text2);
+    margin: 8px 0 4px 0;
+  }
+  .picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .picker-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    text-align: left;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.1s;
+    width: 100%;
+  }
+  .picker-row:hover { background: #f3f4f6; border-color: var(--border2); }
+  .picker-row.checked {
+    background: #d1fae5;
+    border-color: #059669;
+    color: #065f46;
+    font-weight: 600;
+  }
+  .picker-row.checked:hover { background: #a7f3d0; }
+  .picker-row.picker-action {
+    background: linear-gradient(90deg, #f0f8fc 0%, #e6f0fb 100%);
+    border-color: #93c5fd;
+  }
+  .picker-row.picker-action.checked {
+    background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 100%);
+    border-color: #059669;
+  }
+  .picker-row.picker-flag {
+    border-style: dashed;
+  }
+  .picker-row.picker-flag.checked {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #92400e;
+  }
+  .picker-dot {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    font-weight: 700;
+    color: #059669;
+  }
+  .picker-row.checked .picker-dot { background: #059669; color: #fff; border-color: #059669; }
+  .picker-row.picker-flag.checked .picker-dot { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+  .picker-label { flex: 1; }
+  .picker-hint { font-size: 16px; color: var(--text3); font-weight: 400; }
+  .picker-row.checked .picker-hint { color: #065f46; }
+
   .sidebar-foot { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 18px; color: var(--text2-on-dark); }
   .sidebar-foot .who { color: var(--text-on-dark); font-weight: 600; font-size: 20px; }
   .sidebar-foot .role-tag { display: inline-block; padding: 1px 7px; background: rgba(0,166,160,0.2); color: var(--accent); border-radius: 10px; font-size: 15px; margin-left: 6px; font-weight: 600; }
@@ -1802,22 +1872,25 @@ function affiliationBadge(c) {
 }
 
 // ====== 案件狀態(已做了什麼裁決)======
-const STATUS_OPTIONS = [
-  { value: '處理中',             icon: '🟢', cls: 'st-active' },
-  { value: '已通報主管',         icon: '📢', cls: 'st-wait' },
-  { value: '已反映給',           icon: '↪️', cls: 'st-wait', needsTarget: true },
-  { value: '等單',               icon: '📋', cls: 'st-wait' },
-  { value: '釐清中',             icon: '🔍', cls: 'st-wait' },
-  { value: '已報廢,建議採購',   icon: '♻️', cls: 'st-disposal', triggers: 'need_decision' },
-  { value: '完成,等批准',       icon: '✅', cls: 'st-done',     triggers: 'submit' },
+// 情境註記(下半部 picker 選項) — 不影響 checklist 進度,只是輔助說明
+const CONTEXT_FLAGS = [
+  { value: '釐清中',   icon: '🔍', cls: 'st-wait' },
+  { value: '已反映給', icon: '↪️', cls: 'st-wait', needsTarget: true },
 ];
 
 function statusIcon(s) {
   if (!s) return '🟢';
-  // 處理「已反映給:資訊室」這種帶冒號的情況
   const base = String(s).split(':')[0].split(':')[0];
-  const opt = STATUS_OPTIONS.find(x => x.value === base);
-  return opt ? opt.icon : '🔧';
+  // 先看是不是情境註記
+  const opt = CONTEXT_FLAGS.find(x => x.value === base);
+  if (opt) return opt.icon;
+  // 進度推算狀態
+  if (base.indexOf('已採購') >= 0) return '🛒';
+  if (base.indexOf('已到貨') >= 0) return '📦';
+  if (base.indexOf('完成') >= 0) return '✅';
+  if (base.indexOf('已報廢') >= 0 || base.indexOf('建議採購') >= 0) return '♻️';
+  if (base.indexOf('不採購') >= 0) return '🚫';
+  return '🟢';
 }
 
 // 縮短顯示 — 去掉「,等XX」這種冗詞
@@ -1829,6 +1902,8 @@ function shortStatus(s) {
     '不採購,等批准': '不採購',
     '完成,等批准': '完成',
     '已報廢,建議採購': '建議採購',
+    '統一採購,已封緘': '統一採購',
+    '維修完成,等批准': '維修完成',
   };
   return map[s] || s;
 }
@@ -1836,74 +1911,152 @@ function shortStatus(s) {
 function statusClass(s) {
   if (!s || s === '處理中') return 'st-active';
   const base = String(s).split(':')[0].split(':')[0];
-  const opt = STATUS_OPTIONS.find(x => x.value === base);
-  return opt ? opt.cls : 'st-custom';
+  const opt = CONTEXT_FLAGS.find(x => x.value === base);
+  if (opt) return opt.cls;
+  if (base.indexOf('已採購') >= 0 || base.indexOf('已到貨') >= 0) return 'st-wait';
+  if (base.indexOf('完成') >= 0) return 'st-done';
+  if (base.indexOf('已報廢') >= 0 || base.indexOf('建議採購') >= 0) return 'st-disposal';
+  return 'st-active';
 }
 
+// ===== 新版 Picker =====
+// 上半部 = checklist(同步),下半部 = 情境註記
 function openStatusPicker(caseId) {
   const c = state.cases.find(x => x.id === caseId);
   if (!c) return;
-  const cur = c.waitingFor || '處理中';
+  const checklist = migrateRepairChecklist(c) || [];
+  const cur = c.waitingFor || '';
+  const curBase = String(cur).split(':')[0].split(':')[0];
+  const isClosed = c.state === 'closed';
 
-  showModal('案件狀態:目前到哪一步?', `
-    <div style="display:flex;flex-direction:column;gap:6px;">
-      ${STATUS_OPTIONS.map(opt => {
-        const matched = opt.needsTarget
-          ? cur.indexOf(opt.value) === 0
-          : cur === opt.value;
-        return `
-        <button onclick="${opt.needsTarget ? `pickStatusWithTarget('${caseId}', ${JSON.stringify(opt.value).replace(/"/g, '&quot;')})` : `setStatus('${caseId}', ${JSON.stringify(opt.value).replace(/"/g, '&quot;')})`}"
-                class="status-pick-btn ${matched ? 'active' : ''}"
-                style="text-align:left;padding:14px 18px;font-size:21px;">
-          ${opt.icon} ${escapeHtml(opt.value)}${opt.needsTarget ? ' <span style="color:var(--text3);font-size:18px;">(需填對象)</span>' : ''}
-        </button>`;
-      }).join('')}
-      <button onclick="setStatusCustom('${caseId}')" class="status-pick-btn"
-              style="text-align:left;padding:14px 18px;font-size:21px;border-style:dashed;">
-        🔧 其他(手動填寫)
+  // 渲染 checklist 一個項目
+  const renderCkRow = (it) => {
+    const isAction = c.cat === 'repair' && (it.id === 'completed' || it.id === 'disposal');
+    const cls = ['picker-row', it.done ? 'checked' : '', isAction ? 'picker-action' : ''].filter(Boolean).join(' ');
+    return `<button type="button" class="${cls}" onclick="pickerToggleCheck('${caseId}', '${it.id}', this)">
+      <span class="picker-dot">${it.done ? '✓' : ''}</span>
+      <span class="picker-label">${escapeHtml(it.label)}${isAction && !it.done ? ` <span class="picker-hint">${it.id === 'completed' ? '→ 自動送批准' : '→ 等護理長裁示'}</span>` : ''}</span>
+    </button>`;
+  };
+
+  // 渲染情境註記
+  const renderFlagRow = (opt) => {
+    const matched = opt.needsTarget ? curBase === opt.value : curBase === opt.value;
+    const cls = ['picker-row', 'picker-flag', matched ? 'checked' : ''].filter(Boolean).join(' ');
+    const onClick = opt.needsTarget
+      ? `pickerSetFlagWithTarget('${caseId}', ${JSON.stringify(opt.value).replace(/"/g, '&quot;')})`
+      : `pickerSetFlag('${caseId}', ${JSON.stringify(opt.value).replace(/"/g, '&quot;')})`;
+    return `<button type="button" class="${cls}" onclick="${onClick}">
+      <span class="picker-dot">${matched ? '✓' : ''}</span>
+      <span class="picker-label">${opt.icon} ${escapeHtml(opt.value)}${opt.needsTarget ? ` <span class="picker-hint">(填對象)</span>` : ''}</span>
+    </button>`;
+  };
+
+  showModal('更新進度', `
+    <div style="font-size:16px;color:var(--text2);margin-bottom:6px;">點選即更新,不需按確認</div>
+    ${checklist.length ? `
+      <div class="picker-section-h">📋 案件進度(點擊勾選)</div>
+      <div class="picker-list">${checklist.map(renderCkRow).join('')}</div>
+    ` : ''}
+    <div class="picker-section-h" style="margin-top:14px;">⚙️ 情境註記(選填)</div>
+    <div style="font-size:14px;color:var(--text3);margin-bottom:6px;">不影響進度,只是補充目前卡在哪</div>
+    <div class="picker-list">
+      ${CONTEXT_FLAGS.map(renderFlagRow).join('')}
+      <button type="button" class="picker-row picker-flag" onclick="pickerCustomFlag('${caseId}')">
+        <span class="picker-dot"></span>
+        <span class="picker-label">🔧 其他(手動填寫)</span>
       </button>
+      ${cur ? `<button type="button" class="picker-row picker-flag" onclick="pickerClearFlag('${caseId}')" style="border-style:dashed;color:var(--text2);">
+        <span class="picker-dot"></span>
+        <span class="picker-label">✕ 清除目前的「${escapeHtml(shortStatus(cur))}」註記</span>
+      </button>` : ''}
     </div>
   `, () => true);
 }
 
-function pickStatusWithTarget(caseId, baseLabel) {
-  closeModal();
-  const target = prompt(`${baseLabel} — 反映對象?\n\n例:資訊室、廠商、醫療部、3F 病房、家屬、李醫師`);
-  if (!target) return;
-  setStatus(caseId, `${baseLabel}:${target.trim()}`);
-}
-
-async function setStatus(caseId, value) {
-  closeModal();
+// 樂觀更新 toggle checklist 項目(0 秒延遲)
+async function pickerToggleCheck(caseId, itemId, btnEl) {
   const c = state.cases.find(x => x.id === caseId);
   if (!c) return;
+  const cl = migrateRepairChecklist(c) || [];
+  const item = cl.find(x => x.id === itemId);
+  if (!item) return;
 
-  const updates = { waitingFor: value };
-  let toastMsg = `狀態:${value}`;
-
-  // 「已報廢,建議採購」 → state 改為 need_decision(等護理長裁示)
-  if (value === '已報廢,建議採購' && c.state === 'open') {
-    updates.state = 'need_decision';
-    toastMsg = '已建議報廢採購,等護理長裁示';
-  }
-  // 「完成,等批准」 → state 改為 pending_approval
-  else if (value === '完成,等批准' && c.state === 'open') {
-    updates.state = 'pending_approval';
-    toastMsg = '已送批准,等護理長確認';
+  // 重要 checklist 觸發確認(避免誤勾)
+  if (c.cat === 'repair' && (itemId === 'completed' || itemId === 'disposal') && !item.done) {
+    const msg = itemId === 'completed'
+      ? '勾「維修完成」會自動送批准,確定?'
+      : '勾「已報廢,等採購」會送護理長裁示,確定?';
+    if (!confirm(msg)) return;
   }
 
-  const r = await api('updateCase', { caseId, updates });
-  if (r && r.ok) { toast(toastMsg); refreshAll(); }
-  else toast(r ? r.error : '更新失敗');
+  // 立刻在前端視覺反映(樂觀更新)
+  item.done = !item.done;
+  if (btnEl) {
+    btnEl.classList.toggle('checked', item.done);
+    const dot = btnEl.querySelector('.picker-dot');
+    if (dot) dot.textContent = item.done ? '✓' : '';
+  }
+
+  // 背景同步到後端
+  const r = await api('toggleCheck', { caseId, itemId });
+  if (!r || !r.ok) {
+    // 失敗 → revert
+    item.done = !item.done;
+    if (btnEl) {
+      btnEl.classList.toggle('checked', item.done);
+      const dot = btnEl.querySelector('.picker-dot');
+      if (dot) dot.textContent = item.done ? '✓' : '';
+    }
+    toast(r ? r.error : '更新失敗,請重試');
+    return;
+  }
+
+  // 重要勾選後 toast 提醒(維持原行為)
+  if (c.cat === 'repair' && item.done) {
+    if (itemId === 'completed') toast('✅ 維修完成,已自動送批准');
+    else if (itemId === 'disposal') toast('♻️ 已報廢,等護理長裁示是否採購');
+  }
+  refreshAll();
 }
 
-async function setStatusCustom(caseId) {
+// 設情境註記
+async function pickerSetFlag(caseId, value) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const updates = { waitingFor: value };
+  // 樂觀更新
+  c.waitingFor = value;
+  refreshAll();
   closeModal();
-  const v = prompt('請輸入狀態(短句即可,例:等李醫師簽名)');
+  const r = await api('updateCase', { caseId, updates });
+  if (r && r.ok) {
+    api('addProgress', { caseId, text: `⚙️ 標記:${value}` });
+    toast(`已標記:${value}`);
+  } else toast(r ? r.error : '更新失敗');
+}
+
+async function pickerSetFlagWithTarget(caseId, baseLabel) {
+  const target = prompt(`${baseLabel} — 反映對象?\n\n例:資訊室、廠商、醫療部、3F 病房、家屬、李醫師`);
+  if (!target) return;
+  pickerSetFlag(caseId, `${baseLabel}:${target.trim()}`);
+}
+
+async function pickerCustomFlag(caseId) {
+  const v = prompt('自訂註記:');
   if (!v) return;
-  const r = await api('updateCase', { caseId, updates: { waitingFor: v.trim() } });
-  if (r && r.ok) { toast(`狀態:${v}`); refreshAll(); }
-  else toast(r ? r.error : '更新失敗');
+  pickerSetFlag(caseId, v.trim());
+}
+
+async function pickerClearFlag(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  c.waitingFor = '';
+  refreshAll();
+  closeModal();
+  const r = await api('updateCase', { caseId, updates: { waitingFor: '' } });
+  if (r && r.ok) toast('已清除註記');
+  else toast(r ? r.error : '失敗');
 }
 
 // ====== 交班宣導旗標 ======
@@ -2828,24 +2981,48 @@ function switchToFirstPending() {
 
 async function toggleCheck(caseId, itemId) {
   const c = state.cases.find(x => x.id === caseId);
-  const wasOpen = c && c.state === 'open';
-  const item = c && (c.checklist || []).find(it => it.id === itemId);
-  const willCheck = item && !item.done; // 即將被勾起來
+  if (!c) return;
+  const wasOpen = c.state === 'open';
+  const item = (c.checklist || []).find(it => it.id === itemId);
+  if (!item) return;
+  const willCheck = !item.done;
 
-  const r = await api('toggleCheck', { caseId, itemId });
-  if (r && r.ok) {
-    // 在請修案件勾這兩個關鍵 checkbox 時,給明顯提示
-    if (c && c.cat === 'repair' && wasOpen && willCheck) {
-      if (itemId === 'completed') toast('✅ 維修完成,已自動送批准');
-      else if (itemId === 'disposal') toast('♻️ 已報廢,等護理長裁示是否採購');
-    }
-    // 取消勾選關鍵 checkbox
-    if (c && c.cat === 'repair' && !willCheck) {
-      if (itemId === 'completed' && c.state === 'pending_approval') toast('已取消維修完成,案件回到處理中');
-      else if (itemId === 'disposal' && c.state === 'need_decision') toast('已取消報廢建議,案件回到處理中');
-    }
-    refreshAll();
+  // 重要 checklist:勾下去前先確認(避免誤勾)
+  if (c.cat === 'repair' && (itemId === 'completed' || itemId === 'disposal') && willCheck) {
+    const msg = itemId === 'completed'
+      ? '勾「維修完成」會自動送批准,確定?'
+      : '勾「已報廢,等採購」會送護理長裁示,確定?';
+    if (!confirm(msg)) return;
   }
+
+  // 樂觀更新:立刻翻轉視覺(不等後端)
+  item.done = willCheck;
+  // 部分重新渲染 — 找到該 checklist 區塊重畫
+  const els = document.querySelectorAll(`[onclick*="toggleCheck('${caseId}','${itemId}')"]`);
+  els.forEach(el => {
+    el.classList.toggle('done', item.done);
+  });
+
+  // 背景同步
+  const r = await api('toggleCheck', { caseId, itemId });
+  if (!r || !r.ok) {
+    // revert
+    item.done = !willCheck;
+    els.forEach(el => el.classList.toggle('done', item.done));
+    toast(r ? r.error : '更新失敗');
+    return;
+  }
+
+  // 提示訊息
+  if (c.cat === 'repair' && wasOpen && willCheck) {
+    if (itemId === 'completed') toast('✅ 維修完成,已自動送批准');
+    else if (itemId === 'disposal') toast('♻️ 已報廢,等護理長裁示是否採購');
+  }
+  if (c.cat === 'repair' && !willCheck) {
+    if (itemId === 'completed' && c.state === 'pending_approval') toast('已取消維修完成,案件回到處理中');
+    else if (itemId === 'disposal' && c.state === 'need_decision') toast('已取消報廢建議,案件回到處理中');
+  }
+  refreshAll();
 }
 
 async function takeOver(caseId) {

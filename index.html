@@ -298,6 +298,7 @@
   .badge { display: inline-block; font-size: 18px; padding: 3px 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
   .b-red { background: var(--red-bg); color: var(--red-text); }
   .b-amber { background: var(--amber-bg); color: var(--amber-text); }
+  .b-purple { background: #ede9fe; color: #6d28d9; }
   .b-blue { background: var(--blue-bg); color: var(--blue-text); }
   .b-green { background: var(--green-bg); color: var(--green-text); }
   .b-gray { background: var(--gray-bg); color: var(--text2); }
@@ -1006,6 +1007,7 @@ function flagBadges(f) {
   const out = [];
   if (f.supervisorInvolved) out.push('<span class="badge b-amber">長官介入</span>');
   if (f.lawsuitRisk) out.push('<span class="badge b-red">醫糾風險</span>');
+  if (f.batchPurchase) out.push(`<span class="badge b-purple" title="${escapeHtml(f.batchPurchaseNote || '走統一採購流程')}">🛒 統一採購</span>`);
   return out.join(' ');
 }
 function allChecked(c) {
@@ -2338,17 +2340,36 @@ function isOverdueItem(c, itemId) {
 
 // 把舊的請修 checklist 遷移成新的
 function migrateRepairChecklist(c) {
-  if (c.cat !== 'repair' || !c.checklist) return c.checklist;
+  if (!c.checklist) return c.checklist;
   const cl = c.checklist;
-  const hasOldResult = cl.some(it => it.id === 'result');
-  const hasOldPurchase = cl.some(it => it.id === 'purchase');
-  if (!hasOldResult && !hasOldPurchase) return cl;
-  // 有舊 id,做遷移
-  return cl.map(it => {
-    if (it.id === 'result') return { ...it, id: 'completed', label: '維修完成' };
-    if (it.id === 'purchase') return { ...it, id: 'disposal', label: '已報廢,等採購' };
-    return it;
-  });
+
+  // 請修:result/purchase 遷移
+  if (c.cat === 'repair') {
+    const hasOldResult = cl.some(it => it.id === 'result');
+    const hasOldPurchase = cl.some(it => it.id === 'purchase');
+    if (hasOldResult || hasOldPurchase) {
+      return cl.map(it => {
+        if (it.id === 'result') return { ...it, id: 'completed', label: '維修完成' };
+        if (it.id === 'purchase') return { ...it, id: 'disposal', label: '已報廢,等採購' };
+        return it;
+      });
+    }
+  }
+
+  // 臨床:把舊 id 'pilot' 移除,solution 加 group + label 補(他方問題)
+  if (c.cat === 'clinical') {
+    const hasOldPilot = cl.some(it => it.id === 'pilot');
+    const hasOldSolution = cl.some(it => it.id === 'solution' && !it.group);
+    if (hasOldPilot || hasOldSolution) {
+      return cl.map(it => {
+        if (it.id === 'solution') return { ...it, label: '改善方案產出(我方問題)', group: 'conclusion' };
+        if (it.id === 'pilot') return { ...it, id: 'referred', label: '轉介科系處理(他方問題)', group: 'conclusion' };
+        return it;
+      });
+    }
+  }
+
+  return cl;
 }
 
 function checklistHTML(c) {
@@ -2411,6 +2432,28 @@ function checklistHTML(c) {
       </div>
       <div style="font-size:16px;color:var(--text2);margin:4px 0 8px 0;">SAC 3 → 做 PDCA · SAC 4 → 開事件追蹤單</div>
       ${closureItems.map(renderItem).join('')}
+    </div>`;
+  }
+
+  // 臨床運作:動作 + 結論(可複選)
+  if (c.cat === 'clinical') {
+    const normalItems = checklist.filter(it => !it.group);
+    const conclusionItems = checklist.filter(it => it.group === 'conclusion');
+    if (conclusionItems.length === 0) {
+      return `<div class="checklist">
+        ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,逾期未完成</div>` : ''}
+        ${checklist.map(renderItem).join('')}
+      </div>`;
+    }
+    return `<div class="checklist">
+      ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,逾期未完成</div>` : ''}
+      <div class="ck-section-label">🔧 動作</div>
+      ${normalItems.map(renderItem).join('')}
+      <div class="ck-section-divider">
+        <span class="ck-section-label">🏁 結論(任一或兩個都選)</span>
+      </div>
+      <div style="font-size:16px;color:var(--text2);margin:4px 0 8px 0;">勾任一個 → 可送批准。我方做 + 他方協調可同時勾。</div>
+      ${conclusionItems.map(renderItem).join('')}
     </div>`;
   }
 
@@ -2598,7 +2641,10 @@ function actionsHTML(c) {
   if (c.state === 'need_decision') {
     return `<div class="actions">
       ${isApprover()
-        ? `<button class="primary" onclick="approveDisposal('${c.id}')">同意採購,進採購中</button><button onclick="rejectDisposal('${c.id}')">不採購,直接結案</button><button onclick="returnDisposal('${c.id}')">退回繼續處理</button>`
+        ? `<button class="primary" onclick="approveDisposal('${c.id}')">同意採購,進採購中</button>
+           <button onclick="rejectDisposal('${c.id}')">不採購,直接結案</button>
+           <button onclick="markBatchPurchase('${c.id}')" title="此項目走統一採購流程,案件直接封緘">🛒 走統一採購,直接封緘</button>
+           <button onclick="returnDisposal('${c.id}')">退回繼續處理</button>`
         : `<button disabled>等護理長裁示中...</button>`}
       <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
     </div>`;
@@ -2673,6 +2719,37 @@ async function returnDisposal(caseId) {
     toast('已退回');
     refreshAll();
   } else toast(r ? r.error : '失敗');
+}
+
+// 標為統一採購 → 直接封緘(approver 專用)
+// 用途:此物件併入醫院的統一採購流程,後續用 Excel 管,系統不再追蹤
+async function markBatchPurchase(caseId) {
+  if (!isApprover()) { toast('僅護理長可使用此功能'); return; }
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const note = prompt(`走統一採購,直接封緘\n\n此功能用於可集中下單的物件(例:椅子需湊到 20 張一起下訂)。\n案件會立即封緘,後續採購由你用 Excel 等方式統一管理。\n\n可選:加備註(例:本月椅子 #5 / 統採批號)\n\n→ 留空也可以直接確定`, '');
+  if (note === null) return; // cancel
+  const newFlags = { ...(c.flags || {}), batchPurchase: true };
+  if (note) newFlags.batchPurchaseNote = note;
+  const r = await api('updateCase', { caseId, updates: {
+    state: 'closed',
+    waitingFor: '統一採購,已封緘',
+    closedAt: nowStr(),
+    closedBy: state.user.displayName,
+    flags: newFlags,
+  }});
+  if (r && r.ok) {
+    appendProgressNote(caseId, `🛒 護理長標為統一採購並封緘${note ? ` · 備註:${note}` : ''}`);
+    toast('已標為統一採購並封緘');
+    refreshAll();
+  } else toast(r ? r.error : '失敗');
+}
+
+// 取現在時間字串(yyyy-mm-dd hh:mm:ss)
+function nowStr() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 // 採購中 → 貨到 → 送批准
@@ -4145,10 +4222,10 @@ function defaultChecklist(catId, opts) {
       { id: 'monitor',    label: '48 小時觀察是否升溫', done: false },
     ],
     clinical: [
-      { id: 'identified', label: '問題定義清楚',         done: false },
-      { id: 'discussed',  label: '已與相關科室討論',     done: false },
-      { id: 'solution',   label: '改善方案產出',         done: false },
-      { id: 'pilot',      label: '試行 / 落實',          done: false },
+      { id: 'identified',   label: '問題定義清楚',                 done: false },
+      { id: 'discussed',    label: '已與相關科室討論',             done: false },
+      { id: 'solution',     label: '改善方案產出(我方問題)',     done: false, group: 'conclusion' },
+      { id: 'referred',     label: '轉介科系處理(他方問題)',     done: false, group: 'conclusion' },
     ],
     vip: [
       { id: 'briefed',     label: '通知主治、主任',     done: false },

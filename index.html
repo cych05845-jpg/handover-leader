@@ -2790,6 +2790,13 @@ function actionsHTML(c) {
   // 病人離院子類也要有
   const isRunaway = c.cat === 'event' && c.subType === '病人異常離院';
 
+  // 編輯按鈕:目前 owner / approver 可見,封緘鎖死
+  const canEditCase = c.state !== 'closed' && (
+    isApprover() ||
+    (state.user && c.owner === state.user.displayName)
+  );
+  const editBtn = canEditCase ? `<button onclick="openEditCase('${c.id}')" title="修改案件內容">✏️ 編輯</button>` : '';
+
   // 等護理長裁示(報廢採購建議)
   if (c.state === 'need_decision') {
     return `<div class="actions">
@@ -2799,6 +2806,7 @@ function actionsHTML(c) {
            <button onclick="markBatchPurchase('${c.id}')" title="此項目走統一採購流程,案件直接封緘">🛒 走統一採購,直接封緘</button>
            <button onclick="returnDisposal('${c.id}')">退回繼續處理</button>`
         : `<button disabled>等護理長裁示中...</button>`}
+      ${editBtn}
       <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
     </div>`;
   }
@@ -2809,6 +2817,7 @@ function actionsHTML(c) {
       <button onclick="openAddProgress('${c.id}')">加註進度(例:廠商已下單)</button>
       <button class="primary" onclick="goodsArrived('${c.id}')">📦 貨到了 → 送批准</button>
       <button class="${announce(c) ? 'announce-btn-active' : ''}" onclick="toggleAnnounce('${c.id}')">${announce(c) ? '🔔 已標宣導' : '🔔 標為宣導'}</button>
+      ${editBtn}
       <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
     </div>`;
   }
@@ -2820,6 +2829,7 @@ function actionsHTML(c) {
         : `<button disabled>需護理長/副護理長批准</button>`}
       <button onclick="unsubmit('${c.id}')">退回繼續處理</button>
       ${showAiBtn || isRunaway ? `<button onclick="openCaseAdvice('${c.id}')"><span class="ai-tag">AI</span>諮詢建議</button>` : ''}
+      ${editBtn}
       <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
     </div>`;
   }
@@ -2832,6 +2842,7 @@ function actionsHTML(c) {
     ${c.cat === 'complaint' && (c.tier === 1 || c.tier === '1') ? `<button class="danger" onclick="escalateTier('${c.id}')">升 Tier 2</button>` : ''}
     ${c.cat === 'complaint' && (c.tier === 2 || c.tier === '2') ? `<button class="danger" onclick="convertToEvent('${c.id}')">轉重大異常</button>` : ''}
     <button class="${ready ? 'primary' : ''}" onclick="submitForApproval('${c.id}')">送批准</button>
+    ${editBtn}
     <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
   </div>`;
 }
@@ -4212,6 +4223,125 @@ function detailTemplate(catId) {
 `;
   }
   return '';
+}
+
+// ====== 編輯案件 ======
+function openEditCase(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  if (c.state === 'closed') { toast('已封緘的案件不能編輯'); return; }
+
+  const cat = CATS.find(x => x.id === c.cat);
+  const subTypeOpts = ({
+    repair:    ['醫工', '工務', '建材', '資訊'],
+    leave:     ['病假', '事假', '其他'],
+    event:     ['給藥錯誤', '跌倒', '管路事件', '病人異常離院', '設備異常', '醫糾風險', '其他'],
+    complaint: ['家屬不滿', '處置爭議', '候診時間', '其他'],
+    trauma:    ['無名氏', '重大創傷', '兒虐', '家暴', '性侵'],
+    clinical:  ['流程', 'SOP', '跨科協調', '其他'],
+    vip:       ['VIP', '交辦', '長官關心'],
+    mci:       ['大量傷患 (MCI)', '新聞案件', '兩者皆是'],
+    infection: ['麻疹', '結核', '腸道感染', 'COVID/流感', '院內群聚', 'MDRO', '其他'],
+  })[c.cat] || [];
+
+  const isLeave = c.cat === 'leave';
+  const isComplaint = c.cat === 'complaint';
+
+  const subTypeHtml = subTypeOpts.map(x =>
+    `<option value="${escapeHtml(x)}" ${c.subType === x ? 'selected' : ''}>${escapeHtml(x)}</option>`
+  ).join('');
+
+  const affilOptions = [
+    { v: 'internal', l: '單位內(急診護理)' },
+    { v: 'other_unit', l: '其他單位(行政時間外掛號)' },
+    { v: 'non_nursing', l: '非護理職類' },
+  ];
+  const affilHtml = affilOptions.map(o =>
+    `<option value="${o.v}" ${c.affiliation === o.v ? 'selected' : ''}>${o.l}</option>`
+  ).join('');
+
+  showModal(`編輯案件 (${cat ? cat.label : c.cat})`, `
+    <div style="background:var(--accent-bg);color:var(--accent-d);padding:8px 12px;border-radius:6px;font-size:16px;margin-bottom:10px;line-height:1.5;">
+      ✏️ 修改後會在進度寫一筆「修改紀錄」,讓案件歷程可追溯。
+    </div>
+    <label>子類別</label>
+    <select id="ed-subType">${subTypeHtml}</select>
+    ${isLeave ? `
+      <label>人員歸屬</label>
+      <select id="ed-affiliation">${affilHtml}</select>
+      <div style="font-size:13px;color:var(--text2);margin-top:4px;">⚠️ 改歸屬不會重設 checklist(避免遺失現有勾選)</div>
+    ` : ''}
+    <label>標題</label>
+    <input id="ed-title" value="${escapeHtml(c.title || '')}">
+    <label>補充資訊</label>
+    <input id="ed-meta" value="${escapeHtml(c.meta || '')}">
+    <label>詳情</label>
+    <textarea id="ed-detail" style="min-height:160px;">${escapeHtml(c.detail || '')}</textarea>
+    ${voiceInputButtons('ed-detail', true)}
+    <label>優先度</label>
+    <select id="ed-priority">
+      <option value="high" ${c.priority === 'high' ? 'selected' : ''}>高</option>
+      <option value="med" ${c.priority === 'med' || !c.priority ? 'selected' : ''}>中</option>
+      <option value="low" ${c.priority === 'low' ? 'selected' : ''}>低</option>
+    </select>
+    <label>案件號 / 病歷號(選填)</label>
+    <input id="ed-recordNo" value="${escapeHtml(c.recordNo || '')}" placeholder="例:R-2604-018">
+    ${isComplaint ? `
+      <label>申訴等級</label>
+      <select id="ed-tier">
+        <option value="1" ${(c.tier === 1 || c.tier === '1') ? 'selected' : ''}>Tier 1 警戒</option>
+        <option value="2" ${(c.tier === 2 || c.tier === '2') ? 'selected' : ''}>Tier 2 醫糾風險</option>
+      </select>
+    ` : ''}
+  `, async () => {
+    const updates = {};
+    const changedFields = [];
+
+    const newSubType = document.getElementById('ed-subType').value;
+    const newTitle = document.getElementById('ed-title').value.trim();
+    const newMeta = document.getElementById('ed-meta').value.trim();
+    const newDetail = document.getElementById('ed-detail').value.trim();
+    const newPriority = document.getElementById('ed-priority').value;
+    const newRecord = document.getElementById('ed-recordNo').value.trim();
+
+    if (!newTitle) { toast('標題不能空白'); return false; }
+
+    if (newSubType !== c.subType) { updates.subType = newSubType; changedFields.push('子類別'); }
+    if (newTitle !== (c.title || '')) { updates.title = newTitle; changedFields.push('標題'); }
+    if (newMeta !== (c.meta || '')) { updates.meta = newMeta; changedFields.push('補充'); }
+    if (newDetail !== (c.detail || '')) { updates.detail = newDetail; changedFields.push('詳情'); }
+    if (newPriority !== c.priority) { updates.priority = newPriority; changedFields.push('優先度'); }
+    if (newRecord !== (c.recordNo || '')) { updates.recordNo = newRecord; changedFields.push('案件號'); }
+
+    if (isLeave) {
+      const newAffil = document.getElementById('ed-affiliation').value;
+      if (newAffil !== c.affiliation) { updates.affiliation = newAffil; changedFields.push('歸屬'); }
+    }
+    if (isComplaint) {
+      const newTier = Number(document.getElementById('ed-tier').value);
+      const oldTier = Number(c.tier) || 1;
+      if (newTier !== oldTier) { updates.tier = newTier; changedFields.push('Tier'); }
+    }
+
+    if (changedFields.length === 0) {
+      toast('沒有任何修改');
+      return true;
+    }
+
+    updates.updatedAt = nowStr();
+    const r = await api('updateCase', { caseId, updates });
+    if (!r || !r.ok) { toast(r ? r.error : '更新失敗'); return false; }
+
+    // 寫一筆 progress 記錄修改
+    api('addProgress', {
+      caseId,
+      text: `✏️ 編輯案件:${changedFields.join('、')}`,
+    });
+
+    toast(`已修改:${changedFields.join('、')}`);
+    refreshAll();
+    return true;
+  });
 }
 
 function openAddCase(catId) {

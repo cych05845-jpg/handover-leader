@@ -987,7 +987,10 @@ async function showApp() {
   document.getElementById('login-view').style.display = 'none';
   document.getElementById('app-view').style.display = 'block';
   document.getElementById('me-name').textContent = state.user.displayName;
-  document.getElementById('me-role').textContent = state.user.role === 'approver' ? '可批准' : 'Leader';
+  document.getElementById('me-role').textContent =
+    state.user.role === 'approver' ? '可批准'
+    : state.user.role === 'sv' ? '督導(只看)'
+    : 'Leader';
   await refreshAll();
   startPolling();
   startClock();
@@ -1049,6 +1052,8 @@ function startClock() {
 
 // ====== Render ======
 function isApprover() { return state.user && state.user.role === 'approver'; }
+function isSV() { return state.user && state.user.role === 'sv'; }
+function isReadOnly() { return isSV(); } // 唯讀模式 = SV 督導
 function nowStr() {
   const d = new Date();
   const p = n => String(n).padStart(2, '0');
@@ -1112,6 +1117,16 @@ function renderSummary() {
 }
 
 function renderPendingBar() {
+  // SV 督導:顯示唯讀模式橫條
+  if (isReadOnly()) {
+    const root = document.getElementById('pending-bar');
+    if (root) {
+      root.innerHTML = `<div style="background:linear-gradient(90deg,#dbeafe 0%,#bfdbfe 100%);color:#1e40af;padding:10px 16px;border-radius:8px;font-size:18px;border-left:4px solid #2563eb;margin-bottom:12px;line-height:1.5;">
+        👁 <strong>督導視角</strong> · 唯讀模式 — 可查看所有案件詳情、進度、附件、統計,但不能修改
+      </div>`;
+    }
+    return;
+  }
   const cs = state.cases.filter(x => String(x.deleted || '') !== 'yes');
   const pending = cs.filter(x => x.state === 'pending_approval').length;
   const needDecision = cs.filter(x => x.state === 'need_decision').length;
@@ -1663,7 +1678,7 @@ function renderPane(catId) {
   }
   html += `<div class="section-h">未結案 (${open.length})</div>`;
   html += open.length ? open.map(cardHTML).join('') : '<div class="empty">沒有未結案件</div>';
-  html += `<button class="add-btn" onclick="openAddCase('${catId}')">+ 新增${catLabel}案件</button>`;
+  html += !isReadOnly() ? `<button class="add-btn" onclick="openAddCase('${catId}')">+ 新增${catLabel}案件</button>` : '';
 
   // 篩選時:不分「3 天內 / 3 天前」,全部顯示出來
   if (isFiltering) {
@@ -1825,7 +1840,7 @@ function cardHTML(c) {
       </div>
 
       <div class="cs-line2">
-        <span class="cs-status ${statusClass(c.waitingFor)}" onclick="event.stopPropagation();openStatusPicker('${c.id}')">${statusIcon(c.waitingFor)} ${escapeHtml(shortStatus(c.waitingFor))} ▾</span>
+        <span class="cs-status ${statusClass(c.waitingFor)}" ${isReadOnly() ? '' : `onclick="event.stopPropagation();openStatusPicker('${c.id}')"`}>${statusIcon(c.waitingFor)} ${escapeHtml(shortStatus(c.waitingFor))}${isReadOnly() ? '' : ' ▾'}</span>
         <span class="cs-time">⏱ ${escapeHtml(updateAgo)}${stale ? ` <span class="cs-stale-tag">${daysOld} 天未動</span>` : ''}</span>
         <span class="cs-progress-pill ${progressInfo.cls}">${escapeHtml(progressInfo.text)}</span>
         ${stateBadge(c.state)}
@@ -2119,7 +2134,7 @@ function patientInfoHTML(c) {
 
   // 次要 + 沒資料 → 顯示「+ 加入」按鈕
   if (mode === 'secondary' && !hasData) {
-    if (c.state === 'closed') return '';
+    if (c.state === 'closed' || isReadOnly()) return '';
     return `<div class="info-secondary">
       <button class="info-add-btn" onclick="openPatientInfo('${c.id}')">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2145,7 +2160,7 @@ function patientInfoHTML(c) {
     ['關鍵時序', pi.timing || ''],
   ];
 
-  const editable = c.state !== 'closed';
+  const editable = c.state !== 'closed' && !isReadOnly();
 
   return `<div class="patient-info">
     <div class="pi-h">病人摘要(去識別化)
@@ -2177,7 +2192,7 @@ function staffInfoHTML(c) {
   const hasData = si.empNo || si.dept || si.kind || si.brief || si.followUp || si.expectedReturn;
 
   if (mode === 'secondary' && !hasData) {
-    if (c.state === 'closed') return '';
+    if (c.state === 'closed' || isReadOnly()) return '';
     return `<div class="info-secondary">
       <button class="info-add-btn" onclick="openStaffInfo('${c.id}')">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2197,7 +2212,7 @@ function staffInfoHTML(c) {
     ['預估復工日', si.expectedReturn || ''],
   ];
 
-  const editable = c.state !== 'closed';
+  const editable = c.state !== 'closed' && !isReadOnly();
 
   return `<div class="staff-info">
     <div class="si-h">員工健康狀況
@@ -2222,7 +2237,7 @@ function attachmentsHTML(c) {
   if (c.cat === 'trauma' && ['性侵', '家暴', '兒虐'].indexOf(c.subType) < 0) return '';
 
   const list = c.attachments || [];
-  const editable = c.state !== 'closed';
+  const editable = c.state !== 'closed' && !isReadOnly();
 
   // 性侵/家暴/兒虐/MCI/感管 的提示文字加強
   const isLegal = c.cat === 'trauma' && ['性侵', '家暴', '兒虐'].indexOf(c.subType) >= 0;
@@ -2529,7 +2544,7 @@ function checklistHTML(c) {
   // 顯示前先做遷移(舊案件的 checklist 也能看到新標籤)
   const checklist = migrateRepairChecklist(c);
   if (!checklist || !checklist.length) return '';
-  const disabled = c.state === 'closed';
+  const disabled = c.state === 'closed' || isReadOnly();
   const days = daysSinceCreated(c);
   const rule = OVERDUE_RULES[c.cat];
   const hasAnyOverdue = rule && c.state !== 'closed' &&
@@ -2784,6 +2799,11 @@ function progressHTML(p, caseId, caseClosed) {
 }
 
 function actionsHTML(c) {
+  // SV 督導:只看不能改 → 顯示提示橫條,沒有任何按鈕
+  if (isReadOnly()) {
+    return `<div style="background:#f3f4f6;color:var(--text2);padding:8px 14px;border-radius:6px;font-size:16px;text-align:center;border:1px dashed var(--border2);">👁 督導視角 — 唯讀模式</div>`;
+  }
+
   // 哪些類別開放 AI 諮詢
   const aiAdviceCats = ['event', 'complaint', 'clinical', 'vip', 'mci', 'infection'];
   const showAiBtn = aiAdviceCats.indexOf(c.cat) >= 0;
@@ -2951,14 +2971,14 @@ function renderNotesPane() {
         <div class="n-body">${escapeHtml(n.body)}</div>
         <div class="n-meta">
           <span>${escapeHtml(n.author)} · 更新 ${escapeHtml(n.updated)}</span>
-          <span class="n-actions">
+          ${!isReadOnly() ? `<span class="n-actions">
             <button onclick="openEditNote('${n.id}')">編輯</button>
             <button class="danger" onclick="deleteNote('${n.id}')">刪除</button>
-          </span>
+          </span>` : ''}
         </div>
       </div>
     `).join('') : '<div class="empty">查無相關守則</div>'}
-    <button class="add-btn" onclick="openAddNote()">+ 新增守則</button>
+    ${!isReadOnly() ? `<button class="add-btn" onclick="openAddNote()">+ 新增守則</button>` : ''}
   `;
 }
 
@@ -3789,7 +3809,9 @@ async function renderUsersPane() {
   users.forEach(u => {
     const roleBadge = u.role === 'approver'
       ? '<span class="badge b-blue">approver 可批准</span>'
-      : '<span class="badge b-gray">leader</span>';
+      : u.role === 'sv'
+        ? '<span class="badge b-gray">👁 sv 督導(唯讀)</span>'
+        : '<span class="badge b-gray">leader</span>';
     const isMe = u.username === state.user.username;
     html += `
       <div class="user-row">
@@ -3824,6 +3846,7 @@ function openAddUser() {
     <select id="m-u-role">
       <option value="leader" selected>leader(一般)</option>
       <option value="approver">approver(可批准封緘)</option>
+      <option value="sv">sv(督導,只看不能改)</option>
     </select>
   `, async () => {
     const u = {
@@ -3853,6 +3876,7 @@ async function openEditUser(username) {
     <select id="m-u-role">
       <option value="leader" ${u.role==='leader'?'selected':''}>leader(一般)</option>
       <option value="approver" ${u.role==='approver'?'selected':''}>approver(可批准封緘)</option>
+      <option value="sv" ${u.role==='sv'?'selected':''}>sv(督導,只看不能改)</option>
     </select>
   `, async () => {
     const r2 = await api('updateUser', {

@@ -1040,8 +1040,19 @@ function startPolling() {
 function startClock() {
   function tick() {
     const d = new Date();
-    const p = n => String(n).padStart(2, '0');
-    const t = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    let t;
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Taipei',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+        hour12: false,
+      }).formatToParts(d).reduce((a, p) => (a[p.type] = p.value, a), {});
+      t = `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+    } catch (e) {
+      const p = n => String(n).padStart(2, '0');
+      t = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
     const e1 = document.getElementById('now');
     const e2 = document.getElementById('now-top');
     if (e1) e1.textContent = t;
@@ -1054,11 +1065,6 @@ function startClock() {
 function isApprover() { return state.user && state.user.role === 'approver'; }
 function isSV() { return state.user && state.user.role === 'sv'; }
 function isReadOnly() { return isSV(); } // 唯讀模式 = SV 督導
-function nowStr() {
-  const d = new Date();
-  const p = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
 
 function prioBadge(p) {
   return p === 'high' ? '<span class="badge b-red">高</span>'
@@ -2929,11 +2935,23 @@ async function markBatchPurchase(caseId) {
   } else toast(r ? r.error : '失敗');
 }
 
-// 取現在時間字串(yyyy-mm-dd hh:mm:ss)
+// 取現在時間字串(yyyy-mm-dd hh:mm:ss,強制台灣時區)
 function nowStr() {
+  // 用 Intl 強制台北時區,即使瀏覽器在別處也對
   const d = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    }).formatToParts(d).reduce((a, p) => (a[p.type] = p.value, a), {});
+    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+  } catch (e) {
+    // fallback: 用瀏覽器時區
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
 }
 
 // 採購中 → 貨到 → 送批准

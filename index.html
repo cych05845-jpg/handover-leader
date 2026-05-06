@@ -645,6 +645,7 @@
 
   .time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; padding: 12px; background: var(--bg); border-radius: 8px; font-size: 21px; }
   .tf-header { grid-column: 1 / -1; font-size: 18px; color: var(--text2); font-weight: 600; padding-bottom: 4px; border-bottom: 1px dashed var(--border); margin-bottom: 4px; }
+  .tf-required { font-size: 14px; color: var(--text3); margin-left: 6px; font-weight: 400; }
   .tf { display: flex; flex-direction: column; gap: 4px; }
   .tf-label { color: var(--text2); font-size: 18px; font-weight: 500; }
   .tf-value { font-weight: 600; font-size: 24px; font-variant-numeric: tabular-nums; }
@@ -2834,42 +2835,57 @@ function transferAdvice() {
   };
 }
 
-// 重大外傷時間軸 — 4 個關鍵時間點(都可編輯)
+// 重大外傷時間軸 — 所有時間點都可編輯,事後補登 friendly
 const TRAUMA_TIME_FIELDS = [
-  { key: 'arrival',     label: '抵院時間',    icon: '🚑' },
-  { key: 'team',        label: '外傷團隊到位', icon: '👥' },
-  { key: 'imaging',     label: '影像/實驗室完成', icon: '🩻' },
-  { key: 'admit',       label: '入院/手術',   icon: '🏥' },
+  { key: 'arrival',     label: '抵院時間',         icon: '🚑' },
+  { key: 'team',        label: '外傷團隊到位',     icon: '👥' },
+  { key: 'imaging',     label: '影像/實驗室完成',  icon: '🩻' },
+  { key: 'admit',       label: '入院/手術',        icon: '🏥' },
+];
+
+// 「品質指標」欄位:外傷醫師、社工(舊欄位,有規定時間 → 算超時)
+const TRAUMA_QUALITY_FIELDS = [
+  { key: 'traumaDr_actual', requiredKey: 'traumaDr_required', statusKey: 'traumaDr_status', label: '外傷醫師到場', icon: '🩺' },
+  { key: 'sw_actual',       requiredKey: 'sw_required',       statusKey: 'sw_status',       label: '社工到場',     icon: '🧑‍⚕️' },
 ];
 
 function timelineHTML(c) {
-  // 只有 trauma 類別 + 重大創傷類子類顯示時間軸
+  // 只有 trauma 類別才顯示
   const cat = CATS.find(x => x.id === c.cat);
   if (!cat || !cat.timed) return '';
   const tl = c.timeline || {};
   const isClosed = c.state === 'closed';
   const editable = !isClosed && !isReadOnly();
 
+  // 通用時間欄位渲染(也用於品質指標欄位)
+  const renderTimeRow = (f, isQuality) => {
+    const val = tl[f.key] || '';
+    const display = val ? formatTimeShort(val) : '—';
+
+    let extraInfo = '';
+    let extraCls = '';
+    if (isQuality && f.requiredKey && tl[f.requiredKey] && tl[f.requiredKey] !== '-') {
+      // 品質欄位:顯示規定時間,但靜音模式 — 沒設正確時間前不顯示超時
+      extraInfo = `<span class="tf-required">規定 ${escapeHtml(tl[f.requiredKey])}</span>`;
+      // 靜音模式:除非 leader 主動確認過(traumaDr_confirmed === true),否則不顯示紅色
+      const confirmed = !!tl[f.statusKey + '_confirmed'];
+      if (val && confirmed) {
+        extraCls = tl[f.statusKey] === 'ontime' ? 'ontime' : tl[f.statusKey] === 'late' ? 'late' : '';
+      }
+    }
+
+    return `<div class="tf">
+      <span class="tf-label">${f.icon} ${escapeHtml(f.label)}${extraInfo}</span>
+      <span class="tf-value ${val ? 'has-value' : 'empty'} ${extraCls}" ${editable ? `onclick="event.stopPropagation();editTraumaTime('${c.id}','${f.key}','${escapeHtml(f.label)}',${isQuality ? 'true' : 'false'})"` : ''}>
+        ${val ? escapeHtml(display) : (editable ? '點此填寫' : '—')}${editable && val ? ' ✏️' : ''}
+      </span>
+    </div>`;
+  };
+
   return `<div class="time-fields">
-    <div class="tf-header">⏱ 重大時間紀錄(可編輯)</div>
-    ${TRAUMA_TIME_FIELDS.map(f => {
-      const val = tl[f.key] || '';
-      const display = val ? formatTimeShort(val) : '—';
-      return `<div class="tf">
-        <span class="tf-label">${f.icon} ${f.label}</span>
-        <span class="tf-value ${val ? 'has-value' : 'empty'}" ${editable ? `onclick="event.stopPropagation();editTraumaTime('${c.id}','${f.key}','${escapeHtml(f.label)}')"` : ''}>${val ? escapeHtml(display) : (editable ? '點此填寫' : '—')}${editable && val ? ' ✏️' : ''}</span>
-      </div>`;
-    }).join('')}
-    ${tl.traumaDr_required && tl.traumaDr_required !== '-' ? `
-      <div class="tf"><span class="tf-label">外傷醫師(規定 ${escapeHtml(tl.traumaDr_required)})</span>
-        <span class="tf-value ${tl.traumaDr_status === 'ontime' ? 'ontime' : tl.traumaDr_status === 'late' ? 'late' : ''}">${tl.traumaDr_actual ? escapeHtml(formatTimeShort(tl.traumaDr_actual)) : '—'}</span>
-      </div>
-    ` : ''}
-    ${tl.sw_required && tl.sw_required !== '-' ? `
-      <div class="tf"><span class="tf-label">社工(規定 ${escapeHtml(tl.sw_required)})</span>
-        <span class="tf-value ${tl.sw_status === 'ontime' ? 'ontime' : tl.sw_status === 'late' ? 'late' : ''}">${tl.sw_actual ? escapeHtml(formatTimeShort(tl.sw_actual)) : '—'}</span>
-      </div>
-    ` : ''}
+    <div class="tf-header">⏱ 重大時間紀錄(全部可編輯,事後補登請改成實際時間)</div>
+    ${TRAUMA_TIME_FIELDS.map(f => renderTimeRow(f, false)).join('')}
+    ${TRAUMA_QUALITY_FIELDS.filter(f => tl[f.requiredKey] && tl[f.requiredKey] !== '-').map(f => renderTimeRow(f, true)).join('')}
   </div>`;
 }
 
@@ -2881,53 +2897,195 @@ function formatTimeShort(val) {
   return s;
 }
 
-// 編輯/設定外傷時間點
-async function editTraumaTime(caseId, fieldKey, fieldLabel) {
+// 編輯/設定外傷時間點(統一函數,品質欄位會重算超時)
+async function editTraumaTime(caseId, fieldKey, fieldLabel, isQuality) {
   const c = state.cases.find(x => x.id === caseId);
   if (!c) return;
   const tl = c.timeline || {};
   const cur = tl[fieldKey] || '';
+  const arrival = tl.arrival || '';
 
-  // 預設值:現在的時間(沒填過時),或現有值
-  const defaultVal = cur || nowStr().substring(0, 16); // YYYY-MM-DD HH:mm
+  // 預設值:現有值 / 抵院時間 / 現在時間
+  const defaultVal = cur || nowStr().substring(0, 16);
 
-  // 用 prompt 讓 leader 輸入時間
-  const input = prompt(
-    `${fieldLabel}\n\n格式:YYYY-MM-DD HH:mm\n例:2026-05-04 10:25\n\n直接按確定 = 採用 [${defaultVal}]\n清空 = 刪除這個時間`,
-    defaultVal
-  );
-  if (input === null) return;
-  const trimmed = input.trim();
+  // 如果有抵院時間,提供「倒推」快速按鈕
+  const arrivalQuickButtons = arrival ? `
+    <div style="font-size:14px;color:var(--text2);margin-top:10px;">從抵院時間(${escapeHtml(formatTimeShort(arrival))})倒推:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+      <button type="button" onclick="setTimeFromArrival('${caseId}','${fieldKey}','${escapeHtml(fieldLabel)}',${isQuality ? 'true' : 'false'},5)">+5 分</button>
+      <button type="button" onclick="setTimeFromArrival('${caseId}','${fieldKey}','${escapeHtml(fieldLabel)}',${isQuality ? 'true' : 'false'},10)">+10 分</button>
+      <button type="button" onclick="setTimeFromArrival('${caseId}','${fieldKey}','${escapeHtml(fieldLabel)}',${isQuality ? 'true' : 'false'},15)">+15 分</button>
+      <button type="button" onclick="setTimeFromArrival('${caseId}','${fieldKey}','${escapeHtml(fieldLabel)}',${isQuality ? 'true' : 'false'},30)">+30 分</button>
+      <button type="button" onclick="setTimeFromArrival('${caseId}','${fieldKey}','${escapeHtml(fieldLabel)}',${isQuality ? 'true' : 'false'},60)">+60 分</button>
+    </div>
+  ` : '';
 
-  // 驗證格式
-  let finalVal = '';
-  if (trimmed === '') {
-    finalVal = ''; // 清除
-  } else {
-    const m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
-    if (!m) {
-      toast('格式錯誤,請用 YYYY-MM-DD HH:mm');
-      return;
+  // 拆 default 為 date / time
+  const dParts = defaultVal.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+  const defaultDate = dParts ? dParts[1] : nowStr().substring(0, 10);
+  const defaultTime = dParts ? dParts[2] : nowStr().substring(11, 16);
+
+  showModal(`記錄 ${fieldLabel}`, `
+    <div style="background:#fef3c7;color:#92400e;padding:10px 12px;border-radius:6px;font-size:15px;line-height:1.5;margin-bottom:10px;">
+      💡 預設帶現在時間 — <strong>事後補登請改成實際時間</strong>,系統才能正確計算品質指標。
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <label>日期</label>
+        <input type="date" id="m-tt-date" value="${defaultDate}">
+      </div>
+      <div>
+        <label>時間</label>
+        <input type="time" id="m-tt-time" value="${defaultTime}" step="60">
+      </div>
+    </div>
+
+    <div style="font-size:14px;color:var(--text2);margin-top:14px;">從現在倒推:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+      <button type="button" onclick="setTimeQuickModal(0)">📍 現在</button>
+      <button type="button" onclick="setTimeQuickModal(-5)">5 分鐘前</button>
+      <button type="button" onclick="setTimeQuickModal(-10)">10 分鐘前</button>
+      <button type="button" onclick="setTimeQuickModal(-30)">30 分鐘前</button>
+      <button type="button" onclick="setTimeQuickModal(-60)">1 小時前</button>
+      <button type="button" onclick="setTimeQuickModal(-120)">2 小時前</button>
+      <button type="button" onclick="setTimeQuickModal(-240)">4 小時前</button>
+    </div>
+
+    ${arrivalQuickButtons}
+
+    ${cur ? `<div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--border);">
+      <button type="button" onclick="clearTraumaTime('${caseId}','${fieldKey}','${escapeHtml(fieldLabel)}')" style="background:transparent;color:var(--red-text);">✕ 清除這個時間</button>
+    </div>` : ''}
+  `, async () => {
+    const date = document.getElementById('m-tt-date').value;
+    const time = document.getElementById('m-tt-time').value;
+    if (!date || !time) { toast('請填日期與時間'); return false; }
+    const finalVal = `${date} ${time}`;
+    return await applyTraumaTimeUpdate(caseId, fieldKey, fieldLabel, finalVal, isQuality);
+  });
+}
+
+// 共用:更新 timeline 一個欄位
+async function applyTraumaTimeUpdate(caseId, fieldKey, fieldLabel, finalVal, isQuality) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return false;
+  const tl = c.timeline || {};
+  const oldVal = tl[fieldKey] || '';
+  const newTimeline = { ...tl, [fieldKey]: finalVal };
+
+  // 品質欄位:重新計算超時 + 標記 confirmed(離開靜音模式)
+  if (isQuality) {
+    const qf = TRAUMA_QUALITY_FIELDS.find(f => f.key === fieldKey);
+    if (qf && tl.arrival) {
+      const arrivalDate = new Date(String(tl.arrival).replace(' ', 'T'));
+      const actualDate = new Date(finalVal.replace(' ', 'T'));
+      const diffMin = (actualDate - arrivalDate) / 60000;
+      const required = parseInt(String(tl[qf.requiredKey]).match(/\d+/) ? String(tl[qf.requiredKey]).match(/\d+/)[0] : '0', 10);
+      newTimeline[qf.statusKey] = (required > 0 && diffMin <= required) ? 'ontime' : 'late';
+      newTimeline[qf.statusKey + '_confirmed'] = true; // 離開靜音模式
     }
-    finalVal = trimmed.substring(0, 16); // 取到分,不存秒
   }
 
   // 樂觀更新
-  const newTimeline = { ...tl, [fieldKey]: finalVal };
   c.timeline = newTimeline;
   refreshAll();
 
   const r = await api('updateCase', { caseId, updates: { timeline: newTimeline } });
   if (r && r.ok) {
+    const oldDisplay = oldVal ? formatTimeShort(oldVal) : '無';
+    const newDisplay = formatTimeShort(finalVal);
     api('addProgress', {
       caseId,
-      text: finalVal
-        ? `⚙️ 更新時間:${fieldLabel} → ${formatTimeShort(finalVal)}`
-        : `⚙️ 清除時間:${fieldLabel}`
+      text: oldVal
+        ? `✏️ 修改時間:${fieldLabel} ${oldDisplay} → ${newDisplay}`
+        : `⚙️ 設定時間:${fieldLabel} → ${newDisplay}`
     });
-    toast(finalVal ? `已更新 ${fieldLabel}` : `已清除 ${fieldLabel}`);
+    toast(`已更新 ${fieldLabel}`);
+    return true;
   } else {
     // revert
+    c.timeline = tl;
+    refreshAll();
+    toast(r ? r.error : '更新失敗');
+    return false;
+  }
+}
+
+// modal 內快速按鈕:設成 N 分鐘前
+function setTimeQuickModal(minutesAgo) {
+  const d = new Date(Date.now() + minutesAgo * 60000);
+  let dateStr, timeStr;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(d).reduce((a, p) => (a[p.type] = p.value, a), {});
+    dateStr = `${parts.year}-${parts.month}-${parts.day}`;
+    timeStr = `${parts.hour}:${parts.minute}`;
+  } catch (e) {
+    const p = n => String(n).padStart(2, '0');
+    dateStr = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+    timeStr = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  const dateEl = document.getElementById('m-tt-date');
+  const timeEl = document.getElementById('m-tt-time');
+  if (dateEl) dateEl.value = dateStr;
+  if (timeEl) timeEl.value = timeStr;
+}
+
+// 從抵院時間倒推 N 分鐘 — 直接套用(不用按確認)
+async function setTimeFromArrival(caseId, fieldKey, fieldLabel, isQuality, addMinutes) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const arrival = c.timeline && c.timeline.arrival;
+  if (!arrival) { toast('沒有抵院時間,先填抵院時間'); return; }
+
+  const arrivalDate = new Date(String(arrival).replace(' ', 'T'));
+  const target = new Date(arrivalDate.getTime() + addMinutes * 60000);
+  let dateStr, timeStr;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(target).reduce((a, p) => (a[p.type] = p.value, a), {});
+    dateStr = `${parts.year}-${parts.month}-${parts.day}`;
+    timeStr = `${parts.hour}:${parts.minute}`;
+  } catch (e) {
+    const p = n => String(n).padStart(2, '0');
+    dateStr = `${target.getFullYear()}-${p(target.getMonth()+1)}-${p(target.getDate())}`;
+    timeStr = `${p(target.getHours())}:${p(target.getMinutes())}`;
+  }
+  // 把 modal 內的欄位也改一下(讓使用者看到變化)
+  const dateEl = document.getElementById('m-tt-date');
+  const timeEl = document.getElementById('m-tt-time');
+  if (dateEl) dateEl.value = dateStr;
+  if (timeEl) timeEl.value = timeStr;
+}
+
+// 清除某個時間欄位
+async function clearTraumaTime(caseId, fieldKey, fieldLabel) {
+  if (!confirm(`確定清除「${fieldLabel}」?`)) return;
+  closeModal();
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const tl = c.timeline || {};
+  const newTimeline = { ...tl };
+  delete newTimeline[fieldKey];
+  // 如果是品質欄位,連 status 跟 confirmed 一起清
+  const qf = TRAUMA_QUALITY_FIELDS.find(f => f.key === fieldKey);
+  if (qf) {
+    delete newTimeline[qf.statusKey];
+    delete newTimeline[qf.statusKey + '_confirmed'];
+  }
+  c.timeline = newTimeline;
+  refreshAll();
+  const r = await api('updateCase', { caseId, updates: { timeline: newTimeline } });
+  if (r && r.ok) {
+    api('addProgress', { caseId, text: `🗑 清除時間:${fieldLabel}` });
+    toast(`已清除 ${fieldLabel}`);
+  } else {
     c.timeline = tl;
     refreshAll();
     toast(r ? r.error : '更新失敗');

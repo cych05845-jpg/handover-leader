@@ -644,11 +644,14 @@
   .runaway-banner.runaway-overdue { background: var(--red-bg); color: var(--red-text); border-left-color: var(--red-text); font-weight: 600; }
 
   .time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; padding: 12px; background: var(--bg); border-radius: 8px; font-size: 21px; }
+  .tf-header { grid-column: 1 / -1; font-size: 18px; color: var(--text2); font-weight: 600; padding-bottom: 4px; border-bottom: 1px dashed var(--border); margin-bottom: 4px; }
   .tf { display: flex; flex-direction: column; gap: 4px; }
   .tf-label { color: var(--text2); font-size: 18px; font-weight: 500; }
   .tf-value { font-weight: 600; font-size: 24px; font-variant-numeric: tabular-nums; }
   .tf-value.late { color: var(--red-text); }
   .tf-value.ontime { color: var(--green-text); }
+  .tf-value.has-value { color: var(--text); cursor: pointer; transition: background 0.15s; padding: 2px 6px; border-radius: 4px; margin-left: -6px; }
+  .tf-value.has-value:hover { background: var(--accent-bg); }
   .tf-value.empty { color: var(--accent); font-weight: 500; cursor: pointer; font-size: 21px; }
   .tf-value.empty:hover { text-decoration: underline; }
 
@@ -665,6 +668,21 @@
 
   .add-btn { font-size: 21px; background: transparent; border: 1.5px dashed var(--border2); border-radius: 8px; padding: 12px; width: 100%; color: var(--text2); cursor: pointer; margin-top: 10px; font-weight: 500; transition: all 0.15s; }
   .add-btn:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-d); }
+  /* 頂部新增按鈕:更搶眼,讓 leader 立刻能找到 */
+  .add-btn.add-btn-top {
+    margin-top: 0;
+    margin-bottom: 14px;
+    background: var(--accent);
+    color: #fff;
+    border-style: solid;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .add-btn.add-btn-top:hover {
+    background: var(--accent-d);
+    border-color: var(--accent-d);
+    color: #fff;
+  }
   .empty { font-size: 21px; color: var(--text3); padding: 20px; text-align: center; background: var(--bg2); border-radius: 8px; border: 1px dashed var(--border); }
 
   /* 守則 */
@@ -1651,20 +1669,34 @@ function shouldHideClosed(c) {
 
 // 控制是否強制顯示某分類的所有已封緘
 const showAllClosed = {};
+// 分類分頁封緘區段是否展開(預設摺疊)
+const closedSectionOpen = {};
+
+function toggleClosedSection(catId) {
+  closedSectionOpen[catId] = !closedSectionOpen[catId];
+  renderPanes();
+}
 
 function renderPane(catId) {
   const allItems = state.cases.filter(x => x.cat === catId && String(x.deleted || '') !== 'yes');
   const kw = state.paneFilter[catId] || '';
   const items = kw ? allItems.filter(c => matchPaneFilter(c, kw)) : allItems;
 
-  const pending = items.filter(x => x.state === 'pending_approval').sort((a,b) => String(b.created).localeCompare(String(a.created)));
-  const open    = items.filter(x => x.state === 'open' || x.state === 'need_decision' || x.state === 'purchasing').sort((a,b) => String(b.created).localeCompare(String(a.created)));
-  const closed  = items.filter(x => x.state === 'closed').sort((a,b) => String(b.closedAt||'').localeCompare(String(a.closedAt||'')));
+  // 採購中的請修案件,不顯示在「請修」分頁(已歸入採購中分頁)
+  // 但搜尋時不過濾(讓 leader 可以追查物件歷史)
+  const visibleItems = (catId === 'repair' && !kw)
+    ? items.filter(x => x.state !== 'purchasing')
+    : items;
+
+  const pending = visibleItems.filter(x => x.state === 'pending_approval').sort((a,b) => String(b.created).localeCompare(String(a.created)));
+  const open    = visibleItems.filter(x => x.state === 'open' || x.state === 'need_decision' || x.state === 'purchasing').sort((a,b) => String(b.created).localeCompare(String(a.created)));
+  const closed  = visibleItems.filter(x => x.state === 'closed').sort((a,b) => String(b.closedAt||'').localeCompare(String(a.closedAt||'')));
 
   // 3 天內封緘 vs 3 天前封緘
   const closedRecent = closed.filter(c => !shouldHideClosed(c));
   const closedHidden = closed.filter(c => shouldHideClosed(c));
   const showAll = !!showAllClosed[catId];
+  const sectionOpen = !!closedSectionOpen[catId];
 
   // 篩選結果跨狀態(搜尋時把已封緘的也顯示出來,方便追查物件歷史)
   const isFiltering = !!kw;
@@ -1672,9 +1704,14 @@ function renderPane(catId) {
   const catLabel = CATS.find(x=>x.id===catId).label;
   let html = paneFilterBox(catId, `🔍 在「${catLabel}」內搜尋 — 例:推床、ER101、監視器`);
 
+  // 新增按鈕移到頂部(在搜尋框下方,案件清單上方)
+  if (!isReadOnly()) {
+    html += `<button class="add-btn add-btn-top" onclick="openAddCase('${catId}')">+ 新增${catLabel}案件</button>`;
+  }
+
   if (isFiltering) {
     html += `<div style="background:var(--accent-bg);color:var(--accent-d);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:18px;">
-      🔍 篩選「${escapeHtml(kw)}」共 ${items.length} 件(含全部歷史)
+      🔍 篩選「${escapeHtml(kw)}」共 ${visibleItems.length} 件(含全部歷史)
     </div>`;
   }
 
@@ -1684,7 +1721,6 @@ function renderPane(catId) {
   }
   html += `<div class="section-h">未結案 (${open.length})</div>`;
   html += open.length ? open.map(cardHTML).join('') : '<div class="empty">沒有未結案件</div>';
-  html += !isReadOnly() ? `<button class="add-btn" onclick="openAddCase('${catId}')">+ 新增${catLabel}案件</button>` : '';
 
   // 篩選時:不分「3 天內 / 3 天前」,全部顯示出來
   if (isFiltering) {
@@ -1693,18 +1729,26 @@ function renderPane(catId) {
       html += closed.map(cardHTML).join('');
     }
   } else if (closedRecent.length || closedHidden.length) {
-    html += `<div class="section-h closed">已封緘 ${closedRecent.length}${closedHidden.length ? ` <span style="color:var(--text2);font-size:18px;font-weight:500;">(另有 ${closedHidden.length} 件 3 天前的已自動隱藏)</span>` : ''}</div>`;
-    html += closedRecent.map(cardHTML).join('');
-    if (closedHidden.length) {
-      if (showAll) {
-        html += `<div style="text-align:center;margin:12px 0;">
-          <button onclick="toggleClosedHidden('${catId}')" style="background:transparent;color:var(--text2);">▴ 收合 ${closedHidden.length} 件 3 天前的封緘紀錄</button>
-        </div>`;
-        html += closedHidden.map(cardHTML).join('');
-      } else {
-        html += `<div style="text-align:center;margin:12px 0;">
-          <button onclick="toggleClosedHidden('${catId}')" style="background:transparent;color:var(--accent-d);font-size:18px;">▾ 顯示其他 ${closedHidden.length} 件已封緘紀錄(或用搜尋查詢)</button>
-        </div>`;
+    // 整個封緘區段預設摺疊
+    const totalClosed = closedRecent.length + (closedHidden.length || 0);
+    html += `<div class="section-h closed section-h-toggle" onclick="toggleClosedSection('${catId}')" style="cursor:pointer;display:flex;align-items:center;gap:8px;">
+      <span class="closed-arrow">${sectionOpen ? '▾' : '▸'}</span>
+      已封緘 (${closedRecent.length}${closedHidden.length ? ` + ${closedHidden.length} 隱藏` : ''})
+      <span style="font-size:15px;color:var(--text3);font-weight:400;margin-left:auto;">${sectionOpen ? '點擊收起' : '點擊展開'}</span>
+    </div>`;
+    if (sectionOpen) {
+      html += closedRecent.map(cardHTML).join('');
+      if (closedHidden.length) {
+        if (showAll) {
+          html += `<div style="text-align:center;margin:12px 0;">
+            <button onclick="toggleClosedHidden('${catId}')" style="background:transparent;color:var(--text2);">▴ 收合 ${closedHidden.length} 件 3 天前的封緘紀錄</button>
+          </div>`;
+          html += closedHidden.map(cardHTML).join('');
+        } else {
+          html += `<div style="text-align:center;margin:12px 0;">
+            <button onclick="toggleClosedHidden('${catId}')" style="background:transparent;color:var(--accent-d);font-size:18px;">▾ 顯示其他 ${closedHidden.length} 件已封緘紀錄(或用搜尋查詢)</button>
+          </div>`;
+        }
       }
     }
   }
@@ -2698,9 +2742,29 @@ function checklistHTML(c) {
 // 平假日判斷 + 給出通報路徑建議
 function transferAdvice() {
   const now = new Date();
-  const dow = now.getDay(); // 0 = 週日
-  const hour = now.getHours();
-  const min = now.getMinutes();
+  // 強制用台灣時區判斷時間,避免裝置時區設錯
+  let dow, hour, min, todayStr;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', weekday: 'short',
+      hour12: false,
+    }).formatToParts(now).reduce((a, p) => (a[p.type] = p.value, a), {});
+    todayStr = `${parts.year}-${parts.month}-${parts.day}`;
+    hour = parseInt(parts.hour, 10);
+    min = parseInt(parts.minute, 10);
+    // weekday 是 'Mon','Tue'... 轉成 0-6
+    const dowMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
+    dow = dowMap[parts.weekday] !== undefined ? dowMap[parts.weekday] : now.getDay();
+  } catch (e) {
+    // fallback:用裝置時區
+    dow = now.getDay();
+    hour = now.getHours();
+    min = now.getMinutes();
+    const p = n => String(n).padStart(2, '0');
+    todayStr = `${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}`;
+  }
   const decimalHour = hour + min / 60;
 
   // 國定假日清單(2026 年)
@@ -2714,7 +2778,7 @@ function transferAdvice() {
     '2026-09-25', // 中秋(連假)
     '2026-10-09', '2026-10-10', // 國慶連假
   ];
-  const todayStr = now.toISOString().split('T')[0];
+  // todayStr 已在上面用台灣時區算出
   const isHoliday = HOLIDAYS_2026.indexOf(todayStr) >= 0;
 
   // 社工值班:週一至週五全天 + 週六 12:00 前
@@ -2770,38 +2834,178 @@ function transferAdvice() {
   };
 }
 
+// 重大外傷時間軸 — 4 個關鍵時間點(都可編輯)
+const TRAUMA_TIME_FIELDS = [
+  { key: 'arrival',     label: '抵院時間',    icon: '🚑' },
+  { key: 'team',        label: '外傷團隊到位', icon: '👥' },
+  { key: 'imaging',     label: '影像/實驗室完成', icon: '🩻' },
+  { key: 'admit',       label: '入院/手術',   icon: '🏥' },
+];
+
 function timelineHTML(c) {
-  if (!c.timeline) return '';
-  const tl = c.timeline;
-  const fmt = (val, status, fld) => {
-    if (!val) return `<span class="tf-value empty" onclick="setTraumaTime('${c.id}','${fld}')">點此記錄到達</span>`;
-    const cls = status === 'ontime' ? 'ontime' : status === 'late' ? 'late' : '';
-    return `<span class="tf-value ${cls}">${escapeHtml(String(val).split(' ')[1] || val)}</span>`;
-  };
+  // 只有 trauma 類別 + 重大創傷類子類顯示時間軸
+  const cat = CATS.find(x => x.id === c.cat);
+  if (!cat || !cat.timed) return '';
+  const tl = c.timeline || {};
+  const isClosed = c.state === 'closed';
+  const editable = !isClosed && !isReadOnly();
+
   return `<div class="time-fields">
-    <div class="tf"><span class="tf-label">抵院時間</span><span class="tf-value">${escapeHtml(String(tl.arrival||'').split(' ')[1] || tl.arrival || '—')}</span></div>
+    <div class="tf-header">⏱ 重大時間紀錄(可編輯)</div>
+    ${TRAUMA_TIME_FIELDS.map(f => {
+      const val = tl[f.key] || '';
+      const display = val ? formatTimeShort(val) : '—';
+      return `<div class="tf">
+        <span class="tf-label">${f.icon} ${f.label}</span>
+        <span class="tf-value ${val ? 'has-value' : 'empty'}" ${editable ? `onclick="event.stopPropagation();editTraumaTime('${c.id}','${f.key}','${escapeHtml(f.label)}')"` : ''}>${val ? escapeHtml(display) : (editable ? '點此填寫' : '—')}${editable && val ? ' ✏️' : ''}</span>
+      </div>`;
+    }).join('')}
     ${tl.traumaDr_required && tl.traumaDr_required !== '-' ? `
-      <div class="tf"><span class="tf-label">外傷醫師(${escapeHtml(tl.traumaDr_required)})</span>${fmt(tl.traumaDr_actual, tl.traumaDr_status, 'traumaDr_actual')}</div>
+      <div class="tf"><span class="tf-label">外傷醫師(規定 ${escapeHtml(tl.traumaDr_required)})</span>
+        <span class="tf-value ${tl.traumaDr_status === 'ontime' ? 'ontime' : tl.traumaDr_status === 'late' ? 'late' : ''}">${tl.traumaDr_actual ? escapeHtml(formatTimeShort(tl.traumaDr_actual)) : '—'}</span>
+      </div>
     ` : ''}
     ${tl.sw_required && tl.sw_required !== '-' ? `
-      <div class="tf"><span class="tf-label">社工(${escapeHtml(tl.sw_required)})</span>${fmt(tl.sw_actual, tl.sw_status, 'sw_actual')}</div>
+      <div class="tf"><span class="tf-label">社工(規定 ${escapeHtml(tl.sw_required)})</span>
+        <span class="tf-value ${tl.sw_status === 'ontime' ? 'ontime' : tl.sw_status === 'late' ? 'late' : ''}">${tl.sw_actual ? escapeHtml(formatTimeShort(tl.sw_actual)) : '—'}</span>
+      </div>
     ` : ''}
   </div>`;
 }
 
+function formatTimeShort(val) {
+  // "2026-05-04 10:25" → "5/4 10:25"
+  const s = String(val);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}:\d{2})/);
+  if (m) return `${parseInt(m[2])}/${parseInt(m[3])} ${m[4]}`;
+  return s;
+}
+
+// 編輯/設定外傷時間點
+async function editTraumaTime(caseId, fieldKey, fieldLabel) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const tl = c.timeline || {};
+  const cur = tl[fieldKey] || '';
+
+  // 預設值:現在的時間(沒填過時),或現有值
+  const defaultVal = cur || nowStr().substring(0, 16); // YYYY-MM-DD HH:mm
+
+  // 用 prompt 讓 leader 輸入時間
+  const input = prompt(
+    `${fieldLabel}\n\n格式:YYYY-MM-DD HH:mm\n例:2026-05-04 10:25\n\n直接按確定 = 採用 [${defaultVal}]\n清空 = 刪除這個時間`,
+    defaultVal
+  );
+  if (input === null) return;
+  const trimmed = input.trim();
+
+  // 驗證格式
+  let finalVal = '';
+  if (trimmed === '') {
+    finalVal = ''; // 清除
+  } else {
+    const m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+    if (!m) {
+      toast('格式錯誤,請用 YYYY-MM-DD HH:mm');
+      return;
+    }
+    finalVal = trimmed.substring(0, 16); // 取到分,不存秒
+  }
+
+  // 樂觀更新
+  const newTimeline = { ...tl, [fieldKey]: finalVal };
+  c.timeline = newTimeline;
+  refreshAll();
+
+  const r = await api('updateCase', { caseId, updates: { timeline: newTimeline } });
+  if (r && r.ok) {
+    api('addProgress', {
+      caseId,
+      text: finalVal
+        ? `⚙️ 更新時間:${fieldLabel} → ${formatTimeShort(finalVal)}`
+        : `⚙️ 清除時間:${fieldLabel}`
+    });
+    toast(finalVal ? `已更新 ${fieldLabel}` : `已清除 ${fieldLabel}`);
+  } else {
+    // revert
+    c.timeline = tl;
+    refreshAll();
+    toast(r ? r.error : '更新失敗');
+  }
+}
+
+// 判斷一筆 progress 是不是「系統自動產生」(不是 leader 手寫的)
+function isAutoProgress(text) {
+  if (!text) return false;
+  const t = String(text).trim();
+  // 開頭符號識別 — ✓✗⚙️✏️📦♻️🛒🔔(自動勾選/取消/標記/編輯/採購/封緘等)
+  const autoPrefixes = ['✓ ', '✗ ', '⚙️ ', '✏️ ', '📦 ', '♻️ ', '🛒 ', '🔔 ', '📎 '];
+  if (autoPrefixes.some(p => t.indexOf(p) === 0)) return true;
+  // 「已採購」「已到貨」「批准封緘」之類
+  if (/^(✅|⚙️|🔔)\s/.test(t)) return true;
+  return false;
+}
+
 function progressHTML(p, caseId, caseClosed) {
   if (!p || !p.length) return '';
-  const items = p.slice().reverse().slice(0, 3);
   const me = state.user && state.user.displayName;
-  return `<div class="progress">${
-    items.map(x => {
-      const canDelete = !caseClosed && (x.who === me || isApprover());
-      const delBtn = canDelete && caseId
-        ? `<button class="p-del" onclick="deleteProgress('${caseId}', ${JSON.stringify(x.time).replace(/"/g, '&quot;')}, ${JSON.stringify(x.who).replace(/"/g, '&quot;')}, ${JSON.stringify(x.text).replace(/"/g, '&quot;')})" title="刪除這筆">×</button>`
-        : '';
-      return `<div class="p-row"><span class="p-time">${escapeHtml(x.time)}</span><span class="p-who">${escapeHtml(x.who)}</span> · ${escapeHtml(x.text)}${delBtn}</div>`;
-    }).join('')
-  }${p.length > 3 ? `<div class="p-row" style="color:var(--text3);">…還有 ${p.length-3} 筆</div>` : ''}</div>`;
+
+  // 區分系統自動 vs 主動加註,各自反序(最新在上)
+  const sortedAll = p.slice().reverse(); // 最新在前
+  const userNotes = sortedAll.filter(x => !isAutoProgress(x.text));
+  const autoNotes = sortedAll.filter(x => isAutoProgress(x.text));
+
+  const renderRow = (x) => {
+    const canDelete = !caseClosed && (x.who === me || isApprover()) && !isReadOnly();
+    const delBtn = canDelete && caseId
+      ? `<button class="p-del" onclick="deleteProgress('${caseId}', ${JSON.stringify(x.time).replace(/"/g, '&quot;')}, ${JSON.stringify(x.who).replace(/"/g, '&quot;')}, ${JSON.stringify(x.text).replace(/"/g, '&quot;')})" title="刪除這筆">×</button>`
+      : '';
+    return `<div class="p-row"><span class="p-time">${escapeHtml(x.time)}</span><span class="p-who">${escapeHtml(x.who)}</span> · ${escapeHtml(x.text)}${delBtn}</div>`;
+  };
+
+  let html = '<div class="progress">';
+
+  // 主動加註(最多顯示 3 筆,沒有就顯示提示)
+  if (userNotes.length === 0 && autoNotes.length === 0) {
+    html += '</div>';
+    return html;
+  }
+
+  if (userNotes.length > 0) {
+    const showCnt = Math.min(3, userNotes.length);
+    html += userNotes.slice(0, showCnt).map(renderRow).join('');
+    if (userNotes.length > 3) {
+      html += `<div class="p-row" style="color:var(--text3);">…還有 ${userNotes.length-3} 筆主動加註</div>`;
+    }
+  }
+
+  // 系統自動紀錄折疊區(預設摺疊,只顯示「系統紀錄 N 筆 ▾」)
+  if (autoNotes.length > 0 && caseId) {
+    const expanded = !!(state.expandedAutoProgress && state.expandedAutoProgress[caseId]);
+    html += `<div class="auto-progress-toggle" onclick="event.stopPropagation();toggleAutoProgress('${caseId}')" style="cursor:pointer;color:var(--text3);font-size:14px;padding:4px 0;border-top:1px dashed var(--border);margin-top:4px;">
+      ${expanded ? '▾' : '▸'} 系統自動紀錄 ${autoNotes.length} 筆 ${expanded ? '(點擊收起)' : '(點擊展開)'}
+    </div>`;
+    if (expanded) {
+      html += '<div class="auto-progress-list" style="opacity:0.75;">';
+      html += autoNotes.map(renderRow).join('');
+      html += '</div>';
+    }
+  } else if (autoNotes.length > 0) {
+    // 沒 caseId(罕見)→ 直接顯示但灰
+    html += '<div class="auto-progress-list" style="opacity:0.6;">';
+    html += autoNotes.slice(0, 2).map(renderRow).join('');
+    if (autoNotes.length > 2) html += `<div class="p-row" style="color:var(--text3);">…系統紀錄 ${autoNotes.length} 筆</div>`;
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function toggleAutoProgress(caseId) {
+  if (!state.expandedAutoProgress) state.expandedAutoProgress = {};
+  state.expandedAutoProgress[caseId] = !state.expandedAutoProgress[caseId];
+  renderPanes();
 }
 
 function actionsHTML(c) {
@@ -3120,11 +3324,23 @@ async function convertToEvent(caseId) {
 }
 
 function setTraumaTime(caseId, field) {
-  // 預設帶現在時間
+  // 預設帶現在時間 — 強制台灣時區(避免裝置時區設錯)
   const d = new Date();
-  const p = n => String(n).padStart(2, '0');
-  const todayStr = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
-  const nowTime = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  let todayStr, nowTime;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+      hour12: false,
+    }).formatToParts(d).reduce((a, p) => (a[p.type] = p.value, a), {});
+    todayStr = `${parts.year}-${parts.month}-${parts.day}`;
+    nowTime = `${parts.hour}:${parts.minute}`;
+  } catch (e) {
+    const p = n => String(n).padStart(2, '0');
+    todayStr = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+    nowTime = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
 
   const fieldLabel = field === 'traumaDr_actual' ? '外傷醫師到場時間' : '社工到場時間';
 
@@ -3160,10 +3376,21 @@ function setTraumaTime(caseId, field) {
 }
 
 async function setTraumaQuick(caseId, field, minutesAgo) {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() + minutesAgo);
-  const p = n => String(n).padStart(2, '0');
-  const t = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  // 強制台灣時區
+  const d = new Date(Date.now() + minutesAgo * 60000);
+  let t;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+      hour12: false,
+    }).formatToParts(d).reduce((a, p) => (a[p.type] = p.value, a), {});
+    t = `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+  } catch (e) {
+    const p = n => String(n).padStart(2, '0');
+    t = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
   const r = await api('setTraumaTime', { caseId, field, customTime: t });
   if (r && r.ok) { closeModal(); refreshAll(); toast('已記錄'); }
   else toast(r ? r.error : '失敗');

@@ -3096,11 +3096,29 @@ async function clearTraumaTime(caseId, fieldKey, fieldLabel) {
 function isAutoProgress(text) {
   if (!text) return false;
   const t = String(text).trim();
-  // 開頭符號識別 — ✓✗⚙️✏️📦♻️🛒🔔(自動勾選/取消/標記/編輯/採購/封緘等)
-  const autoPrefixes = ['✓ ', '✗ ', '⚙️ ', '✏️ ', '📦 ', '♻️ ', '🛒 ', '🔔 ', '📎 '];
+
+  // (1) 開頭 emoji 識別 — 自動勾選/取消/標記/編輯/採購/封緘/刪除等
+  const autoPrefixes = ['✓ ', '✗ ', '⚙️ ', '✏️ ', '📦 ', '♻️ ', '🛒 ', '🔔 ', '📎 ', '🗑 ', '✅ '];
   if (autoPrefixes.some(p => t.indexOf(p) === 0)) return true;
-  // 「已採購」「已到貨」「批准封緘」之類
-  if (/^(✅|⚙️|🔔)\s/.test(t)) return true;
+
+  // (2) 系統行為純文字 — 不一定有 emoji
+  const autoPhrases = [
+    '建立案件',
+    '送出批准',
+    '退回繼續處理',
+    '批准封緘',
+    '刪除一筆進度紀錄',
+    '已採購', '已到貨', '不採購',
+    '統一採購', '採購中',
+    '同意採購', '不同意採購',
+    '案件已歸檔',
+    '升 Tier', '降 Tier',
+    '轉為重大異常',
+    '外傷醫師到場',  // 「外傷醫師到場 09:43(10 分鐘)」這種
+    '社工到場',
+  ];
+  if (autoPhrases.some(phr => t.indexOf(phr) >= 0)) return true;
+
   return false;
 }
 

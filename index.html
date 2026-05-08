@@ -2554,7 +2554,7 @@ async function copyCloudScheduleToCurrent(fromMonth) {
     return;
   }
 
-  if (!confirm(`確定把「${fromMonth}」當基礎,改成「${targetMonth}」?\n\n會帶過來:\n  ✓ 員工列表\n  ✓ 規則\n  ✓ 班別偏好/能力\n  ✗ 不帶班別 day-by-day(因為日期不同)`)) return;
+  if (!confirm(`確定把「${fromMonth}」當基礎,改成「${targetMonth}」?\n\n會帶過來:\n  ✓ 員工列表(用最新雲端主檔)\n  ✓ 規則\n  ✓ 班別偏好/能力\n  ✗ 不帶班別 day-by-day(因為日期不同)`)) return;
 
   const data = await loadScheduleFromCloud(fromMonth);
   if (!data) {
@@ -2562,22 +2562,84 @@ async function copyCloudScheduleToCurrent(fromMonth) {
     return;
   }
 
-  // 帶員工 + 規則 + 假日 + 固定,但不帶 schedule(每天的班別)
-  state.staff = data.staff || [];
-  state.fixed = {};  // 清空(因為日期變了)
-  state.schedule = {};  // 清空
+  // 帶員工(用「最新雲端主檔」優先,確保離職、新進等最新狀態)
+  // + 規則 + 假日 + 固定,但不帶 schedule(每天的班別)
+  let masterData = null;
+  try {
+    const token = getAuthToken();
+    if (token) {
+      const masterResult = await apiCall('loadStaffMaster', { token });
+      if (masterResult.ok) {
+        masterData = JSON.parse(masterResult.data);
+      }
+    }
+  } catch (e) {
+    console.warn('載入雲端主檔失敗,改用 ' + fromMonth + ' 班表內的員工列表:', e);
+  }
+
+  if (masterData && Object.keys(masterData).length > 0) {
+    // 用雲端主檔重建 state.staff(這是「權威來源」,含最新離職標記)
+    state.staff = Object.keys(masterData).map(name => {
+      const d = masterData[name];
+      return {
+        id: 'p_' + Math.random().toString(36).slice(2, 9),
+        name: name,
+        level: d.level || '',
+        capabilities: d.capabilities || [],
+        peakStage: d.peakStage || '',
+        hireDate: d.hireDate || '',
+        mentor: d.mentor || '',
+        preferredShift: d.preferredShift || '',
+        canSwapTo: d.canSwapTo || [],
+        note: d.note || '',
+        special: d.special || '',
+        status: d.status || 'active',
+        statusDate: d.statusDate || '',
+        prevMonthConsec: d.prevMonthConsec || 0,
+      };
+    });
+    console.log(`[copyCloud] 用雲端主檔載入 ${state.staff.length} 人 (含離職標記)`);
+  } else {
+    // Fallback:雲端主檔不存在 → 用上月班表裡的 staff 快照
+    state.staff = data.staff || [];
+    console.log(`[copyCloud] 雲端無主檔,用 ${fromMonth} 班表內快照載入 ${state.staff.length} 人`);
+  }
+
+  state.fixed = {};      // 清空(因為日期變了)
+  state.schedule = {};   // 清空
+  state.notes = {};      // 清空備註(備註是 per 月的)
   if (data.rules) state.rules = data.rules;
   // holidays 清空(本月跟上月日期不同)
   state.holidays = [];
 
-  saveAll();
+  // 寫進 localStorage
+  saveStaffData();
 
   if (typeof renderAll === 'function') renderAll();
   if (typeof renderRulesPanel === 'function') renderRulesPanel();
   if (typeof renderMonthlySummary === 'function') renderMonthlySummary();
+  if (typeof renderTable === 'function') renderTable();
 
   closeModal('cloud-schedules-modal');
-  alert(`✅ 已用「${fromMonth}」為基礎,目前是「${targetMonth}」空白班表(員工/規則已帶入)`);
+
+  // 統計訊息(顯示有沒有過濾掉離職人員)
+  const targetMonthStart = new Date(targetMonth + '-01');
+  const activeCount = state.staff.filter(p => {
+    if (p.status === 'resigned' && p.statusDate) {
+      const rd = new Date(p.statusDate);
+      if (rd < targetMonthStart) return false;
+    }
+    return true;
+  }).length;
+  const excludedCount = state.staff.length - activeCount;
+
+  let msg = `✅ 已用「${fromMonth}」為基礎,目前是「${targetMonth}」空白班表\n\n`;
+  msg += `員工列表:${state.staff.length} 人(${masterData ? '雲端最新主檔' : `${fromMonth} 班表快照`})\n`;
+  if (excludedCount > 0) {
+    msg += `其中 ${excludedCount} 人在 ${targetMonth} 已離職,排班時會自動隱藏\n`;
+  }
+  msg += `實際可排班:${activeCount} 人`;
+  alert(msg);
 }
 
 async function manualSaveScheduleNow() {

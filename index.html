@@ -3255,6 +3255,7 @@ function setNoteForCell(pid, day, value) {
   }
   // Save to localStorage
   if (typeof saveSnapshot === 'function') saveSnapshot();
+  if (typeof autoSaveScheduleLocal === 'function') autoSaveScheduleLocal();
   // Re-render
   renderTable();
 }
@@ -3280,6 +3281,63 @@ function onCellClick(e) {
   }
 
   renderTable();
+  autoSaveScheduleLocal();  // ★ 自動存進 localStorage
+}
+
+// ============================================================
+// 班表自動儲存 (localStorage) — 排到一半關掉瀏覽器也不會丟
+// ============================================================
+let _saveScheduleTimer = null;
+
+function autoSaveScheduleLocal() {
+  if (_saveScheduleTimer) clearTimeout(_saveScheduleTimer);
+  _saveScheduleTimer = setTimeout(() => {
+    saveScheduleLocalNow();
+  }, 800);  // 800ms debounce — 連續點不會打太多次
+}
+
+function saveScheduleLocalNow() {
+  try {
+    const data = {
+      month: state.month,
+      schedule: state.schedule || {},
+      notes: state.notes || {},
+      fixed: state.fixed || {},
+      holidays: state.holidays || [],
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem('schedulerSchedule', JSON.stringify(data));
+  } catch (e) {
+    console.warn('班表存 localStorage 失敗:', e);
+  }
+}
+
+function loadScheduleLocal() {
+  try {
+    const saved = localStorage.getItem('schedulerSchedule');
+    if (!saved) return null;
+    const data = JSON.parse(saved);
+    // 只載入相同月份的(避免月份切換時混淆)
+    if (data.month !== state.month) {
+      console.log(`[班表還原] localStorage 是 ${data.month},目前是 ${state.month},跳過`);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    console.warn('讀 localStorage 班表失敗:', e);
+    return null;
+  }
+}
+
+function restoreScheduleFromLocal() {
+  const data = loadScheduleLocal();
+  if (!data) return false;
+  state.schedule = data.schedule || {};
+  state.notes = data.notes || {};
+  state.fixed = data.fixed || {};
+  if (data.holidays && data.holidays.length > 0) state.holidays = data.holidays;
+  console.log(`[班表還原] 已從 localStorage 還原 ${state.month} 的排班內容`);
+  return true;
 }
 
 // ============================================================
@@ -10366,6 +10424,7 @@ function applyAnalyzedPrefs() {
 // ============================================================
 loadSavedRules();
 autoSetHolidays();
+restoreScheduleFromLocal();  // ★ 還原上次未存的班表
 updateEmptyStateForMaster();
 // Sync target days input after a short delay (so DOM is ready)
 setTimeout(() => { if (typeof syncTargetDaysInput === 'function') syncTargetDaysInput(); }, 100);

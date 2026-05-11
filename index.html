@@ -1421,7 +1421,17 @@ function navItemHTML(c) {
   let badge = 0;
   let badgeClass = '';
   if (c.hasTracking) {
-    badge = state.cases.filter(x => x.cat === c.id && x.state !== 'closed' && String(x.deleted || '') !== 'yes').length;
+    // 請修分頁:扣掉採購中流程的案件(跟 dashboard 卡片、分頁清單一致)
+    if (c.id === 'repair') {
+      badge = state.cases.filter(x =>
+        x.cat === c.id &&
+        x.state !== 'closed' &&
+        !isInPurchasingFlow(x) &&
+        String(x.deleted || '') !== 'yes'
+      ).length;
+    } else {
+      badge = state.cases.filter(x => x.cat === c.id && x.state !== 'closed' && String(x.deleted || '') !== 'yes').length;
+    }
   } else if (c.isAnnounce) {
     badge = announceCount();
   } else if (c.isPurchasing) {

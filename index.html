@@ -688,6 +688,51 @@
   }
   .empty { font-size: 21px; color: var(--text3); padding: 20px; text-align: center; background: var(--bg2); border-radius: 8px; border: 1px dashed var(--border); }
 
+  /* 請修分頁 subType chip 篩選 */
+  .rsub-chips {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .rsub-chip {
+    font-size: 18px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.12s;
+  }
+  .rsub-chip:hover {
+    background: var(--bg);
+    border-color: var(--accent);
+  }
+  .rsub-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .rsub-chip-count {
+    font-size: 15px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.08);
+    font-variant-numeric: tabular-nums;
+    min-width: 24px;
+    text-align: center;
+  }
+  .rsub-chip.active .rsub-chip-count {
+    background: rgba(255,255,255,0.25);
+    color: #fff;
+  }
+
   /* 守則 */
   .notes-cat { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
   .notes-cat button { font-size: 20px; padding: 5px 12px; border-radius: 999px; }
@@ -1108,6 +1153,16 @@ function isApprover() { return state.user && state.user.role === 'approver'; }
 function isSV() { return state.user && state.user.role === 'sv'; }
 function isReadOnly() { return isSV(); } // 唯讀模式 = SV 督導
 
+// 判斷案件是否屬於「採購中分頁」(已下單採購 / 已到貨等批准)
+// need_decision(等護理長裁示)留在請修分頁,因為等裁示就是等護理長處理
+// 這是採購中分頁的權威定義,所有「請修要不要顯示」的判斷都應該用這個
+function isInPurchasingFlow(c) {
+  if (!c) return false;
+  if (c.state === 'purchasing') return true;
+  if (c.state === 'pending_approval' && String(c.waitingFor || '').indexOf('已到貨') >= 0) return true;
+  return false;
+}
+
 function prioBadge(p) {
   return p === 'high' ? '<span class="badge b-red">高</span>'
        : p === 'med'  ? '<span class="badge b-amber">中</span>'
@@ -1198,7 +1253,7 @@ function renderPendingBar() {
       : `<span class="pb-item pb-pending">⏸ 待批准 <strong>${pending}</strong></span>`);
   }
   if (needDecision > 0) {
-    items.push(`<a class="pb-item pb-decision" onclick="switchTab('purchasing')">🛒 等下單 <strong>${needDecision}</strong></a>`);
+    items.push(`<a class="pb-item pb-decision" onclick="switchTab('repair')">🛒 等裁示 <strong>${needDecision}</strong></a>`);
   }
   if (purchasing > 0) {
     items.push(`<a class="pb-item pb-purchasing" onclick="switchTab('purchasing')">📦 等貨到 <strong>${purchasing}</strong></a>`);
@@ -1242,6 +1297,9 @@ if (state.collapsedGroups === undefined) state.collapsedGroups = { settings: tru
 // 分頁內篩選關鍵字(請修、採購中,各自獨立)
 if (!state.paneFilter) state.paneFilter = {};
 
+// 請修分頁的 subType chip 篩選(預設 'all',點 chip 切換)
+if (!state.repairSubFilter) state.repairSubFilter = 'all';
+
 // 篩選 helper:模糊比對標題/詳情/子類別
 function matchPaneFilter(c, kw) {
   if (!kw) return true;
@@ -1276,9 +1334,7 @@ function navItemHTML(c) {
     badge = announceCount();
   } else if (c.isPurchasing) {
     badge = state.cases.filter(x =>
-      (x.state === 'need_decision' || x.state === 'purchasing' ||
-       (x.state === 'pending_approval' && String(x.waitingFor || '').indexOf('已到貨') >= 0)) &&
-      String(x.deleted || '') !== 'yes'
+      isInPurchasingFlow(x) && String(x.deleted || '') !== 'yes'
     ).length;
     badgeClass = 'nav-badge-purple';
   }
@@ -1390,16 +1446,16 @@ function renderPurchasingPane() {
   const kw = state.paneFilter['purchasing'] || '';
   const filter = (arr) => kw ? arr.filter(c => matchPaneFilter(c, kw)) : arr;
 
-  // 等下單裁示(state = need_decision)
-  const decision = filter(cs.filter(c => c.state === 'need_decision'))
-    .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
+  // 採購流程內的案件統一定義(與 sidebar badge 計數、請修分頁過濾用同一個來源)
+  // need_decision 等裁示案件不在此處,留在請修分頁讓護理長裁示
+  const inFlow = cs.filter(isInPurchasingFlow);
 
   // 已採購,等到貨(state = purchasing)
-  const purchased = filter(cs.filter(c => c.state === 'purchasing'))
+  const purchased = filter(inFlow.filter(c => c.state === 'purchasing'))
     .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
 
   // 已到貨,等批准
-  const arrived = filter(cs.filter(c =>
+  const arrived = filter(inFlow.filter(c =>
     c.state === 'pending_approval' &&
     String(c.waitingFor || '').indexOf('已到貨') >= 0
   )).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
@@ -1446,17 +1502,14 @@ function renderPurchasingPane() {
   if (!kw) {
     html += `
       <div style="background:#fef3c7;color:#92400e;padding:10px 16px;border-radius:8px;margin-bottom:14px;font-size:18px;">
-        💡 採購流程:<strong>等下單裁示</strong> → <strong>已採購</strong> → <strong>已到貨,等批准</strong> → 封緘
+        💡 採購流程:<strong>已採購</strong> → <strong>已到貨,等批准</strong> → 封緘
+        <div style="font-size:15px;margin-top:4px;opacity:0.85;">(等裁示案件在「請修」分頁;統一採購已直接封緘)</div>
       </div>
     `;
   }
 
-  if (decision.length) {
-    html += `<div class="section-h" style="color:#a16207;">⏸ 等護理長裁示是否採購 (${decision.length})</div>`;
-    html += decision.map(c => cardHTML(c)).join('');
-  }
   if (purchased.length) {
-    html += `<div class="section-h" style="color:#7c3aed;margin-top:18px;">🛒 已採購,等到貨 (${purchased.length})</div>`;
+    html += `<div class="section-h" style="color:#7c3aed;">🛒 已採購,等到貨 (${purchased.length})</div>`;
     html += purchased.map(c => cardHTML(c)).join('');
   }
   if (arrived.length) {
@@ -1701,16 +1754,53 @@ function toggleClosedSection(catId) {
   renderPanes();
 }
 
+// 請修分頁:subType chip 篩選列
+// 顯示「全部 / 醫工 / 工務 / 建材 / 資訊」,各 chip 帶現有案件數
+// 計數使用 allItems(已扣除採購中流程的案件),所以反映「請修分頁實際會看到的案件數」
+const REPAIR_SUB_CHIPS = ['醫工', '工務', '建材', '資訊'];
+function renderRepairSubChips(allItems) {
+  // 排除採購流程的案件(跟主體渲染邏輯一致)
+  const visibleForCount = allItems.filter(x => !isInPurchasingFlow(x) && x.state !== 'closed');
+  const current = state.repairSubFilter || 'all';
+  const counts = { all: visibleForCount.length };
+  REPAIR_SUB_CHIPS.forEach(k => {
+    counts[k] = visibleForCount.filter(x => x.subType === k).length;
+  });
+  const chip = (key, label) => `
+    <button class="rsub-chip ${current === key ? 'active' : ''}"
+            onclick="setRepairSubFilter('${key}')">
+      ${label}<span class="rsub-chip-count">${counts[key] || 0}</span>
+    </button>`;
+  return `
+    <div class="rsub-chips">
+      ${chip('all', '全部')}
+      ${REPAIR_SUB_CHIPS.map(k => chip(k, k)).join('')}
+    </div>`;
+}
+
+function setRepairSubFilter(key) {
+  state.repairSubFilter = key;
+  renderPanes();
+}
+
 function renderPane(catId) {
   const allItems = state.cases.filter(x => x.cat === catId && String(x.deleted || '') !== 'yes');
   const kw = state.paneFilter[catId] || '';
   const items = kw ? allItems.filter(c => matchPaneFilter(c, kw)) : allItems;
 
-  // 採購中的請修案件,不顯示在「請修」分頁(已歸入採購中分頁)
+  // 採購中流程的請修案件(purchasing / 已到貨等批准),不顯示在「請修」分頁
+  // need_decision(等裁示)留在請修分頁,因為等裁示就是等護理長處理
+  // 已歸入採購中分頁,避免重複佔據 leader 視野
   // 但搜尋時不過濾(讓 leader 可以追查物件歷史)
-  const visibleItems = (catId === 'repair' && !kw)
-    ? items.filter(x => x.state !== 'purchasing')
+  let visibleItems = (catId === 'repair' && !kw)
+    ? items.filter(x => !isInPurchasingFlow(x))
     : items;
+
+  // 請修分頁特殊處理:subType chip 篩選(僅在非搜尋狀態套用)
+  const repairSub = state.repairSubFilter || 'all';
+  if (catId === 'repair' && !kw && repairSub !== 'all') {
+    visibleItems = visibleItems.filter(x => x.subType === repairSub);
+  }
 
   const pending = visibleItems.filter(x => x.state === 'pending_approval').sort((a,b) => String(b.created).localeCompare(String(a.created)));
   const open    = visibleItems.filter(x => x.state === 'open' || x.state === 'need_decision' || x.state === 'purchasing').sort((a,b) => String(b.created).localeCompare(String(a.created)));
@@ -1731,6 +1821,11 @@ function renderPane(catId) {
   // 新增按鈕移到頂部(在搜尋框下方,案件清單上方)
   if (!isReadOnly()) {
     html += `<button class="add-btn add-btn-top" onclick="openAddCase('${catId}')">+ 新增${catLabel}案件</button>`;
+  }
+
+  // 請修分頁專屬:subType chip 篩選列
+  if (catId === 'repair' && !kw) {
+    html += renderRepairSubChips(allItems);
   }
 
   if (isFiltering) {

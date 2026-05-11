@@ -311,6 +311,16 @@
 
   /* 摘要卡片 */
   .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .summary-since {
+    grid-column: 1 / -1;
+    font-size: 16px;
+    color: var(--text2);
+    padding: 6px 10px;
+    background: var(--bg2);
+    border-radius: 6px;
+    border-left: 3px solid var(--accent);
+    line-height: 1.5;
+  }
   .stat { background: var(--bg2); border-radius: 10px; padding: 12px 14px; cursor: pointer; border: 1px solid var(--border); transition: all 0.15s; }
   .stat:hover { border-color: var(--accent); transform: translateY(-1px); }
   .stat.urgent { background: var(--red-bg); border-color: var(--red-bd); }
@@ -1163,6 +1173,29 @@ function isInPurchasingFlow(c) {
   return false;
 }
 
+// Dashboard 計數起算日(只影響首頁卡片的分母,不影響分頁清單、統計分析)
+// 存在 localStorage,只 approver 可設,所有人可見效果
+function getDashboardCountSince() {
+  try {
+    const v = localStorage.getItem('dashboardCountSince');
+    return v || '';
+  } catch (e) { return ''; }
+}
+function setDashboardCountSince(isoDate) {
+  try {
+    if (isoDate) localStorage.setItem('dashboardCountSince', isoDate);
+    else localStorage.removeItem('dashboardCountSince');
+  } catch (e) {}
+}
+// 案件建立日是否在起算日之後(若沒設起算日,全部算入)
+function caseAfterSince(c, since) {
+  if (!since) return true;
+  const created = String(c.created || '');
+  if (!created) return false;
+  // created 格式通常為 "YYYY-MM-DD HH:mm",取前 10 字元比較
+  return created.substring(0, 10) >= since;
+}
+
 function prioBadge(p) {
   return p === 'high' ? '<span class="badge b-red">高</span>'
        : p === 'med'  ? '<span class="badge b-amber">中</span>'
@@ -1205,18 +1238,31 @@ function renderAll() {
 
 function renderSummary() {
   const trackable = CATS.filter(c => c.hasTracking);
-  document.getElementById('summary').innerHTML = trackable.map(c => {
+  const since = getDashboardCountSince(); // '' 或 'YYYY-MM-DD'
+  const cards = trackable.map(c => {
     const all = state.cases.filter(x => x.cat === c.id);
-    const open = all.filter(x => x.state !== 'closed').length;
+    // 套用起算日:分母只算起算日之後建立的案件
+    const allCounted = since ? all.filter(x => caseAfterSince(x, since)) : all;
+    // 請修卡:未結案 = state!==closed 且 不在採購中流程(跟分頁清單一致)
+    // 其他分類:未結案 = state!==closed
+    // 分子同樣只算起算日之後的(避免「未結案數 > 總數」的怪象)
+    const openItems = c.id === 'repair'
+      ? allCounted.filter(x => x.state !== 'closed' && !isInPurchasingFlow(x))
+      : allCounted.filter(x => x.state !== 'closed');
+    const open = openItems.length;
     const tier2 = c.id === 'complaint'
-      ? all.filter(x => (x.tier === 2 || x.tier === '2') && x.state !== 'closed').length
+      ? allCounted.filter(x => (x.tier === 2 || x.tier === '2') && x.state !== 'closed').length
       : 0;
     const isUrgent = (c.id === 'event' && open > 0) || tier2 > 0;
     return `<div class="stat ${isUrgent ? 'urgent' : ''}" onclick="switchTab('${c.id}')">
       <div class="l">${c.label}</div>
-      <div class="n">${open}<span class="total"> / ${all.length}</span></div>
+      <div class="n">${open}<span class="total"> / ${allCounted.length}</span></div>
     </div>`;
   }).join('');
+  const hint = since
+    ? `<div class="summary-since">📅 計數起算日:${since} (此前案件不計入總數,實際資料仍完整保留)</div>`
+    : '';
+  document.getElementById('summary').innerHTML = cards + hint;
 }
 
 function renderPendingBar() {
@@ -4489,6 +4535,33 @@ async function deleteUser(username, displayName) {
 // ====== 我的設定 ======
 function renderSettingsPane() {
   const u = state.user;
+  const since = getDashboardCountSince();
+  // 算今天日期(台北時區)當預設值
+  const todayStr = nowStr().substring(0, 10);
+  // 只 HN/AHN(approver) 看得到的 Dashboard 設定區塊
+  const dashboardSettingsCard = isApprover() ? `
+    <div class="card" style="margin-top:12px;">
+      <div class="card-title">Dashboard 計數設定</div>
+      <div style="margin-top:8px;font-size:18px;color:var(--text2);line-height:1.6;">
+        首頁總覽卡片的「分母」會隨案件累積越來越大,看起來壓力大。
+        可設一個「起算日」,只計算此日期之後的案件;歷史資料仍完整保留,
+        統計分析、搜尋、案件列表都不受影響。
+      </div>
+      <div style="margin-top:14px;padding:10px 14px;background:var(--bg);border-radius:8px;font-size:19px;">
+        目前起算日:<strong>${since ? since : '未設定(顯示全部歷史)'}</strong>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center;">
+        <label style="margin:0;">改起算日為:</label>
+        <input type="date" id="s-count-since" value="${since || todayStr}" style="margin:0;max-width:200px;">
+        <button class="primary" onclick="applyDashboardCountSince()">套用</button>
+        ${since ? `<button onclick="clearDashboardCountSince()">清除起算日(看全部)</button>` : ''}
+      </div>
+      <div style="margin-top:10px;font-size:16px;color:var(--text3);line-height:1.5;">
+        💡 建議用法:每半年(1/1、7/1)或每年初(1/1)按一次,讓 dashboard 視覺重新乾淨。
+      </div>
+    </div>
+  ` : '';
+
   document.getElementById('pane-settings').innerHTML = `
     <div class="card">
       <div class="card-title">我的帳號</div>
@@ -4512,6 +4585,8 @@ function renderSettingsPane() {
       </div>
     </div>
 
+    ${dashboardSettingsCard}
+
     <div class="card" style="margin-top:12px;">
       <div class="card-title">系統資訊</div>
       <div style="margin-top:12px;font-size: 20px;color:var(--text2);line-height:1.8;">
@@ -4527,6 +4602,31 @@ function renderSettingsPane() {
       <button class="danger" style="margin-top:14px;" onclick="doLogout()">⏻ 登出</button>
     </div>
   `;
+}
+
+// Dashboard 計數起算日:套用
+function applyDashboardCountSince() {
+  if (!isApprover()) { toast('僅護理長/副護理長可設定'); return; }
+  const v = document.getElementById('s-count-since').value;
+  if (!v) { toast('請選擇日期'); return; }
+  const todayStr = nowStr().substring(0, 10);
+  if (v > todayStr) {
+    if (!confirm('起算日在未來,所有卡片數字都會變 0,確定?')) return;
+  }
+  setDashboardCountSince(v);
+  toast('已套用,Dashboard 已更新');
+  renderSettingsPane();
+  renderSummary();
+}
+
+// Dashboard 計數起算日:清除
+function clearDashboardCountSince() {
+  if (!isApprover()) { toast('僅護理長/副護理長可設定'); return; }
+  if (!confirm('清除起算日,Dashboard 卡片回到顯示全部歷史?')) return;
+  setDashboardCountSince('');
+  toast('已清除,顯示全部歷史');
+  renderSettingsPane();
+  renderSummary();
 }
 
 async function changeMyPassword() {

@@ -300,6 +300,8 @@
   .sidebar-foot .role-tag { display: inline-block; padding: 1px 7px; background: rgba(0,166,160,0.2); color: var(--accent); border-radius: 10px; font-size: 15px; margin-left: 6px; font-weight: 600; }
   .sidebar-foot button { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--text-on-dark); margin-top: 8px; width: 100%; padding: 7px; font-size: 20px; }
   .sidebar-foot button:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.3); }
+  /* 手機版專用登出 icon,桌機隱藏 */
+  .sidebar-logout-mobile { display: none; }
 
   /* 主內容區 */
   .main { flex: 1; min-width: 0; padding: 20px 28px 100px; max-width: 1200px; margin: 0 auto; width: 100%; }
@@ -562,18 +564,6 @@
     border-bottom: 2px solid #f59e0b;
     text-align: center;
   }
-  .dismissed-banner {
-    background: linear-gradient(90deg, #fee2e2 0%, #fecaca 100%);
-    color: #991b1b;
-    padding: 10px 14px;
-    border-radius: 8px 8px 0 0;
-    font-weight: 600;
-    font-size: 17px;
-    line-height: 1.5;
-    margin: -18px -20px 12px -20px;
-    border-bottom: 2px solid #dc2626;
-    text-align: left;
-  }
   .decision-banner {
     background: linear-gradient(90deg, #fef3c7 0%, #fcd34d 100%);
     color: #78350f;
@@ -813,14 +803,33 @@
   /* ======== RWD 手機 ======== */
   @media (max-width: 768px) {
     .layout { flex-direction: column; }
-    .sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 30; flex-direction: row; align-items: center; padding: 0 12px; }
+    .sidebar { width: 100%; height: auto; position: sticky; top: 0; z-index: 30; flex-direction: row; align-items: center; padding: 0 12px; gap: 8px; }
     .sidebar-brand { padding: 10px 0; border-bottom: none; border-right: 1px solid rgba(255,255,255,0.08); padding-right: 12px; flex-shrink: 0; }
     .sidebar-brand .sub { display: none; }
-    .sidebar-nav { padding: 8px 6px; display: flex; gap: 2px; overflow-x: auto; flex-wrap: nowrap; }
+    .sidebar-nav { padding: 8px 6px; display: flex; gap: 2px; overflow-x: auto; flex-wrap: nowrap; flex: 1 1 auto; min-width: 0; }
     .nav-item { padding: 8px 12px; flex-shrink: 0; font-size: 20px; }
     .nav-item.active::before { display: none; }
     .nav-label { white-space: nowrap; }
     .sidebar-foot { display: none; }
+    .sidebar-logout-mobile {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      flex-grow: 0;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: var(--text-on-dark);
+      border-radius: 50%;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      position: relative;
+      z-index: 31;
+    }
+    .sidebar-logout-mobile:active { background: rgba(255,255,255,0.18); }
     .main { padding: 16px 14px 100px; }
     .topbar h2 { font-size: 27px; }
     .summary { grid-template-columns: repeat(2, 1fr); }
@@ -864,6 +873,7 @@
         <div id="now" style="margin-top:4px;font-variant-numeric:tabular-nums;">—</div>
         <button onclick="doLogout()">登出</button>
       </div>
+      <button class="sidebar-logout-mobile" onclick="doLogout()" title="登出" aria-label="登出">⏻</button>
     </aside>
 
     <!-- 主內容區 -->
@@ -967,7 +977,7 @@ async function api(action, payload = {}) {
     }
     if (data.code === 'AUTH') {
       toast('Session 過期,請重新登入');
-      doLogout();
+      doLogout(true);
       return null;
     }
     return data;
@@ -993,7 +1003,8 @@ async function doLogin() {
   showApp();
 }
 
-function doLogout() {
+function doLogout(silent) {
+  if (!silent && !confirm('確定登出?')) return;
   state.token = null;
   state.user = null;
   localStorage.removeItem('handover_token');
@@ -1120,7 +1131,6 @@ function flagBadges(f) {
   if (f.supervisorInvolved) out.push('<span class="badge b-amber">長官介入</span>');
   if (f.lawsuitRisk) out.push('<span class="badge b-red">醫糾風險</span>');
   if (f.batchPurchase) out.push(`<span class="badge b-purple" title="${escapeHtml(f.batchPurchaseNote || '走統一採購流程')}">🛒 統一採購</span>`);
-  if (f.dismissed) out.push(`<span class="badge b-gray" title="${escapeHtml(f.dismissReason || '釐清不成案')}">🚫 不成案</span>`);
   return out.join(' ');
 }
 function allChecked(c) {
@@ -1887,8 +1897,6 @@ function cardHTML(c) {
   return `<div class="card ${stateClass} ${tierClass} ${runawayClass} ${announceClass} ${expandedClass} ${stale ? 'stale' : ''}" onclick="toggleExpand('${c.id}', event)">
 
     ${announce ? `<div class="announce-banner">🔔 交班需口頭宣導</div>` : ''}
-
-    ${(c.flags && c.flags.dismissed) ? `<div class="dismissed-banner">🚫 此案經釐清判定不成立${c.flags.dismissReason ? ` — ${escapeHtml(c.flags.dismissReason)}` : ''}</div>` : ''}
 
     ${c.state === 'pending_approval' ? `<div class="approval-banner">${isApprover() ? `⏸ 等你批准 → 封緘${c.waitingFor && c.waitingFor !== '處理中' ? ` <span style="opacity:0.8;font-weight:500;">(${escapeHtml(c.waitingFor)})</span>` : ''}` : `⏸ 等護理長/副護理長批准 → 封緘`}</div>` : ''}
 
@@ -3112,8 +3120,8 @@ function isAutoProgress(text) {
   if (!text) return false;
   const t = String(text).trim();
 
-  // (1) 開頭 emoji 識別 — 自動勾選/取消/標記/編輯/採購/封緘/刪除/不成案等
-  const autoPrefixes = ['✓ ', '✗ ', '⚙️ ', '✏️ ', '📦 ', '♻️ ', '🛒 ', '🔔 ', '📎 ', '🗑 ', '✅ ', '🚫 '];
+  // (1) 開頭 emoji 識別 — 自動勾選/取消/標記/編輯/採購/封緘/刪除等
+  const autoPrefixes = ['✓ ', '✗ ', '⚙️ ', '✏️ ', '📦 ', '♻️ ', '🛒 ', '🔔 ', '📎 ', '🗑 ', '✅ '];
   if (autoPrefixes.some(p => t.indexOf(p) === 0)) return true;
 
   // (2) 系統行為純文字 — 不一定有 emoji
@@ -3244,11 +3252,22 @@ function actionsHTML(c) {
   }
 
   if (c.state === 'pending_approval') {
+    const isOwner = state.user && c.owner === state.user.displayName;
+    const canApprove = isApprover();
+    let recallBtn = '';
+    if (isOwner && !canApprove) {
+      recallBtn = `<button onclick="unsubmit('${c.id}')" title="撤回送批准,案件回到處理中">↩️ 撤回</button>`;
+    } else if (canApprove && !isOwner) {
+      recallBtn = `<button onclick="unsubmit('${c.id}')" title="退回給送出人補件">↩️ 退回補件</button>`;
+    } else if (isOwner && canApprove) {
+      // 自己送、自己也是審核者
+      recallBtn = `<button onclick="unsubmit('${c.id}')" title="撤回送批准">↩️ 撤回</button>`;
+    }
     return `<div class="actions">
-      ${isApprover()
+      ${canApprove
         ? `<button class="primary" onclick="approveCase('${c.id}')">批准封緘</button>`
         : `<button disabled>需護理長/副護理長批准</button>`}
-      <button onclick="unsubmit('${c.id}')">退回繼續處理</button>
+      ${recallBtn}
       ${showAiBtn || isRunaway ? `<button onclick="openCaseAdvice('${c.id}')"><span class="ai-tag">AI</span>諮詢建議</button>` : ''}
       ${editBtn}
       <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
@@ -3256,9 +3275,6 @@ function actionsHTML(c) {
   }
   const ready = allChecked(c);
   const announce_flag = announce(c);
-  // 「不成案」按鈕:適用於 event(異常) 和 complaint(申訴)
-  const dismissibleCats = ['event', 'complaint'];
-  const showDismissBtn = dismissibleCats.indexOf(c.cat) >= 0;
   return `<div class="actions">
     <button onclick="openAddProgress('${c.id}')">加註進度</button>
     <button class="${announce_flag ? 'announce-btn-active' : ''}" onclick="toggleAnnounce('${c.id}')">${announce_flag ? '🔔 已標宣導' : '🔔 標為宣導'}</button>
@@ -3266,7 +3282,6 @@ function actionsHTML(c) {
     ${c.cat === 'complaint' && (c.tier === 1 || c.tier === '1') ? `<button class="danger" onclick="escalateTier('${c.id}')">升 Tier 2</button>` : ''}
     ${c.cat === 'complaint' && (c.tier === 2 || c.tier === '2') ? `<button class="danger" onclick="convertToEvent('${c.id}')">轉重大異常</button>` : ''}
     <button class="${ready ? 'primary' : ''}" onclick="submitForApproval('${c.id}')">送批准</button>
-    ${showDismissBtn ? `<button onclick="openDismissCase('${c.id}')" title="釐清後判定不成案,直接送批准結案" style="background:#fef3c7;color:#92400e;border-color:#f59e0b;">🚫 釐清不成案</button>` : ''}
     ${editBtn}
     <button class="danger" onclick="archiveCase('${c.id}')">歸檔</button>
   </div>`;
@@ -3495,8 +3510,32 @@ async function submitForApproval(caseId) {
 }
 
 async function unsubmit(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  // 權限:送出人(owner) 或 審核者(approver) 才能撤回
+  const isOwner = state.user && c.owner === state.user.displayName;
+  const canApprove = isApprover();
+  if (!isOwner && !canApprove) {
+    toast('只有送出人或護理長/副護理長可撤回');
+    return;
+  }
+  // 依角色顯示不同確認文字
+  const isSelfRecall = isOwner && !canApprove;       // 純送出人(非審核者)→ 自己撤回
+  const isApproverReturn = canApprove && !isOwner;   // 審核者退回他人送的 → 退回補件
+  const isBoth = isOwner && canApprove;              // 自己送、自己也是審核者 → 視為撤回
+  const msg = (isApproverReturn)
+    ? '退回給送出人補件?\n\n案件會回到「處理中」,送出人可繼續編輯後再送批准。'
+    : '撤回送批准?\n\n案件會回到「處理中」,可以繼續編輯後再送一次。';
+  if (!confirm(msg)) return;
   const r = await api('unsubmit', { caseId });
-  if (r && r.ok) refreshAll();
+  if (r && r.ok) {
+    const noteText = isApproverReturn
+      ? `↩️ 護理長退回補件 (操作者:${state.user.displayName})`
+      : `↩️ 撤回送批准 (操作者:${state.user.displayName})`;
+    appendProgressNote(caseId, noteText);
+    toast(isApproverReturn ? '已退回' : '已撤回');
+    refreshAll();
+  } else toast(r ? r.error : '失敗');
 }
 
 async function approveCase(caseId) {
@@ -3516,55 +3555,6 @@ async function convertToEvent(caseId) {
   if (!confirm('轉為「重大異常」?原申訴案會封緘並建立關聯事件。')) return;
   const r = await api('convertToEvent', { caseId });
   if (r && r.ok) { toast('已轉為重大異常'); switchTab('event'); refreshAll(); }
-}
-
-// ===== 釐清不成案 =====
-// 適用於 event(異常)和 complaint(申訴):釐清後判定不成立,直接送批准
-function openDismissCase(caseId) {
-  const c = state.cases.find(x => x.id === caseId);
-  if (!c) return;
-  const catLabel = c.cat === 'event' ? '異常事件' : c.cat === 'complaint' ? '申訴' : '案件';
-
-  showModal('🚫 判定不成案', `
-    <div style="background:#fef3c7;color:#92400e;padding:12px 14px;border-radius:8px;font-size:16px;line-height:1.6;margin-bottom:12px;border-left:4px solid #f59e0b;">
-      ⚠️ <strong>此動作會跳過 SAC/PDCA 流程,直接送批准封緘。</strong><br>
-      請務必填寫不成案理由,以利日後追溯。
-    </div>
-    <label>不成案理由(必填)</label>
-    <textarea id="ed-dismiss-reason" style="min-height:140px;" placeholder="例:釐清後護理師其實沒給錯藥,是病人家屬描述誤會,SOP 再宣導完成。"></textarea>
-    ${voiceInputButtons('ed-dismiss-reason', true)}
-    <div style="margin-top:10px;font-size:14px;color:var(--text2);line-height:1.5;">
-      💡 提示:常見不成案情境
-      <ul style="margin:4px 0 0 18px;padding:0;">
-        <li>釐清後發現原回報內容**誤判**或**描述模糊**</li>
-        <li>事件實際**未發生**(例:跌倒實為自行坐下無外傷)</li>
-        <li>家屬情緒抒發,**無實質糾紛**</li>
-        <li>設備正常,**為操作問題**,SOP 教學完成</li>
-      </ul>
-    </div>
-  `, async () => {
-    const reason = (document.getElementById('ed-dismiss-reason').value || '').trim();
-    if (!reason) { toast('請填寫不成案理由'); return false; }
-    if (reason.length < 10) { toast('理由太簡短,請至少填寫 10 字'); return false; }
-
-    // 更新案件:加 dismissed flag,state 改為 pending_approval
-    const updates = {
-      state: 'pending_approval',
-      flags: { ...(c.flags || {}), dismissed: true, dismissReason: reason },
-    };
-    const r = await api('updateCase', { caseId, updates });
-    if (!r || !r.ok) { toast(r ? r.error : '失敗'); return false; }
-
-    // 寫 progress
-    api('addProgress', {
-      caseId,
-      text: `🚫 判定${catLabel}不成案 - 理由:${reason}`,
-    });
-
-    toast('已判定不成案,送 approver 批准');
-    refreshAll();
-    return true;
-  });
 }
 
 function setTraumaTime(caseId, field) {
@@ -4435,6 +4425,12 @@ function renderSettingsPane() {
         <div>輪詢間隔:30 秒</div>
       </div>
     </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="card-title">登出</div>
+      <div style="margin-top:8px;font-size:19px;color:var(--text2);">登出後需要重新輸入帳號密碼才能進入系統。</div>
+      <button class="danger" style="margin-top:14px;" onclick="doLogout()">⏻ 登出</button>
+    </div>
   `;
 }
 
@@ -4452,7 +4448,7 @@ async function changeMyPassword() {
     document.getElementById('s-old').value = '';
     document.getElementById('s-new1').value = '';
     document.getElementById('s-new2').value = '';
-    setTimeout(() => doLogout(), 1500);
+    setTimeout(() => doLogout(true), 1500);
   } else toast(r ? r.error : '失敗');
 }
 
@@ -5410,7 +5406,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // 驗證 session 是否還有效
     const r = await api('listAll');
     if (r && r.ok) { showApp(); return; }
-    doLogout();
+    doLogout(true);
   }
   document.getElementById('login-password').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();

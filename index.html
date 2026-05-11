@@ -384,6 +384,12 @@
   .b-blue { background: var(--blue-bg); color: var(--blue-text); }
   .b-green { background: var(--green-bg); color: var(--green-text); }
   .b-gray { background: var(--gray-bg); color: var(--text2); }
+  .badge-notcase {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    font-weight: 700;
+  }
 
   .checklist { margin-top: 12px; padding: 10px 12px; background: var(--bg); border-radius: 8px; font-size: 21px; }
   .ck { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
@@ -643,6 +649,27 @@
   /* optional checklist 項目(較淺色) */
   .ck.ck-optional { opacity: 0.7; }
   .ck.ck-optional.done { opacity: 1; }
+
+  /* 被「不成案」否決而停用的 checklist 項目 */
+  .ck-item.ck-disabled {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--bg2);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-size: 19px;
+    color: var(--text3);
+    cursor: not-allowed;
+  }
+  .ck-item.ck-disabled .ck-mark {
+    color: var(--text3);
+    font-size: 22px;
+    width: 22px;
+    text-align: center;
+  }
 
   .ai-section-concerns { background: var(--red-bg); border: 1px solid var(--red-bd); border-radius: 10px; padding: 12px 18px; }
   .ai-section-concerns h4 { color: var(--red-text); }
@@ -1173,6 +1200,14 @@ function isInPurchasingFlow(c) {
   return false;
 }
 
+// 判斷重大異常案件是否為「不成案」(調查後不符合事件定義,撤銷通報)
+// 條件:cat=event 且 checklist 中 not_case 項目已勾
+function isNotCase(c) {
+  if (!c || c.cat !== 'event') return false;
+  const item = (c.checklist || []).find(it => it.id === 'not_case');
+  return !!(item && item.done);
+}
+
 // Dashboard 計數起算日(只影響首頁卡片的分母,不影響分頁清單、統計分析)
 // 存在 localStorage,只 approver 可設,所有人可見效果
 function getDashboardCountSince() {
@@ -1222,7 +1257,18 @@ function flagBadges(f) {
   return out.join(' ');
 }
 function allChecked(c) {
-  return c.checklist && c.checklist.length && c.checklist.every(x => x.done);
+  if (!c.checklist || !c.checklist.length) return false;
+  // 重大異常:若勾了「不成案」,investigation 組(SAC/PDCA/追蹤單)不算入必勾
+  if (c.cat === 'event') {
+    const notCase = c.checklist.find(it => it.id === 'not_case');
+    if (notCase && notCase.done) {
+      return c.checklist.every(x => x.done || x.group === 'investigation');
+    }
+    // 一般成案流程:investigation 內三項擇一即可
+    // 但保留現有行為:全部都要勾(由 leader 自行判斷,因為 PDCA 與追蹤單本就互斥於 SAC 等級)
+    // 註:若您未來想改成「擇一」,把下面那行改為 group=='investigation' 至少一個 done 即可
+  }
+  return c.checklist.every(x => x.done);
 }
 function escapeHtml(s) {
   if (s == null) return '';
@@ -1523,20 +1569,20 @@ function renderPurchasingPane() {
   let html = paneFilterBox('purchasing', '🔍 找特定物件的採購狀態 — 例:推床、ER101 床、監視器');
 
   if (kw) {
-    const totalFound = decision.length + purchased.length + arrived.length + closedFiltered.length;
+    const totalFound = purchased.length + arrived.length + closedFiltered.length;
     html += `<div style="background:var(--accent-bg);color:var(--accent-d);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:18px;">
       🔍 篩選「${escapeHtml(kw)}」共 ${totalFound} 件(含採購相關歷史)
     </div>`;
   }
 
-  if (!decision.length && !purchased.length && !arrived.length && !closedFiltered.length) {
+  if (!purchased.length && !arrived.length && !closedFiltered.length) {
     if (kw) {
       html += `<div class="empty">沒有符合「${escapeHtml(kw)}」的採購案件</div>`;
     } else {
       html += `
         <div style="background:var(--accent-bg);color:var(--accent-d);padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:21px;line-height:1.6;">
-          🛒 <strong>採購中</strong>分頁顯示需要你裁示的採購案件,以及已下單等貨到的案件。<br>
-          當人員回報「已報廢,建議採購」時案件會自動進到這裡。
+          🛒 <strong>採購中</strong>分頁顯示已下單、等貨到、貨已到待批准的採購案件。<br>
+          (等護理長裁示的採購建議在「請修」分頁)
         </div>
         <div class="empty">目前沒有採購相關案件</div>
       `;
@@ -1676,6 +1722,8 @@ async function loadStats() {
       </div>
     ` : ''}
 
+    ${renderEventOutcomeStats(_statsRange)}
+
     ${r.topOwners && r.topOwners.length ? `
       <div class="stats-section">
         <h3>各 Leader 處理量</h3>
@@ -1695,6 +1743,72 @@ async function loadStats() {
     </div>
   `;
   root.innerHTML = html;
+}
+
+// 重大異常結案路徑分析:用前端 state.cases 計算(不動 GAS)
+// 只看「已封緘」的重大異常,因為未結案的還沒有定論
+function renderEventOutcomeStats(rangeDays) {
+  const now = Date.now();
+  const cutoff = rangeDays > 0 ? now - rangeDays * 86400000 : 0;
+  // 只看 cat=event 且已封緘(且非歸檔)且在時間範圍內
+  const closedEvents = state.cases.filter(c => {
+    if (c.cat !== 'event') return false;
+    if (c.state !== 'closed') return false;
+    if (String(c.deleted || '') === 'yes') return false;
+    if (cutoff > 0) {
+      const t = new Date(String(c.closedAt || c.created).replace(' ', 'T')).getTime();
+      if (isNaN(t) || t < cutoff) return false;
+    }
+    return true;
+  });
+  if (closedEvents.length === 0) return ''; // 沒資料就不顯示這段
+  const notCases = closedEvents.filter(isNotCase);
+  const cases = closedEvents.filter(c => !isNotCase(c));
+  const total = closedEvents.length;
+  const notCaseN = notCases.length;
+  const caseN = cases.length;
+  const caseRate = total > 0 ? Math.round(caseN / total * 100) : 0;
+  // 不成案案件還可以列出 Top 子類別(看 leader 最常撤的是什麼類別)
+  const notCaseBySub = {};
+  notCases.forEach(c => {
+    const k = c.subType || '未分類';
+    notCaseBySub[k] = (notCaseBySub[k] || 0) + 1;
+  });
+  const topNotCaseSubs = Object.entries(notCaseBySub).sort((a,b) => b[1]-a[1]).slice(0, 5);
+  return `
+    <div class="stats-section">
+      <h3>🔍 重大異常結案路徑分析</h3>
+      <div style="font-size:16px;color:var(--text2);margin-bottom:10px;">
+        過去 ${rangeDays} 天已封緘的重大異常 ${total} 件,其中:
+      </div>
+      <div class="stats-grid" style="grid-template-columns:repeat(3, 1fr);">
+        <div class="stats-card">
+          <div class="sc-label">成案(走 PDCA/追蹤單)</div>
+          <div class="sc-num" style="color:var(--accent-d);">${caseN}</div>
+        </div>
+        <div class="stats-card">
+          <div class="sc-label">不成案(撤銷通報)</div>
+          <div class="sc-num" style="color:#475569;">${notCaseN}</div>
+        </div>
+        <div class="stats-card">
+          <div class="sc-label">成案率</div>
+          <div class="sc-num">${caseRate}<span style="font-size:0.5em;">%</span></div>
+        </div>
+      </div>
+      ${topNotCaseSubs.length ? `
+        <div style="margin-top:12px;font-size:18px;color:var(--text2);">不成案案件的子類別分佈:</div>
+        <div class="stats-list" style="margin-top:6px;">
+          ${topNotCaseSubs.map((x, i) => `
+            <div class="sl-row">
+              <span class="sl-rank">${i+1}</span>
+              <span class="sl-name">${escapeHtml(x[0])}</span>
+              <span class="sl-num">${x[1]} 件</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
 }
 
 async function runMonthlyAnalysis() {
@@ -2059,6 +2173,7 @@ function cardHTML(c) {
         <span class="cs-time">⏱ ${escapeHtml(updateAgo)}${stale ? ` <span class="cs-stale-tag">${daysOld} 天未動</span>` : ''}</span>
         <span class="cs-progress-pill ${progressInfo.cls}">${escapeHtml(progressInfo.text)}</span>
         ${stateBadge(c.state)}
+        ${isNotCase(c) ? '<span class="badge badge-notcase" title="調查後不符合事件定義,撤銷通報">❎ 不成案</span>' : ''}
       </div>
 
       <div class="cs-flags">${affiliationBadge(c)}${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
@@ -2796,25 +2911,44 @@ function checklistHTML(c) {
     </div>`;
   }
 
-  // 重大異常:PDCA(SAC 3) vs 事件追蹤單(SAC 4)二選一
+  // 重大異常:成案調查 vs 不成案 兩條獨立路徑
   if (c.cat === 'event') {
     const normalItems = checklist.filter(it => !it.group);
-    const closureItems = checklist.filter(it => it.group === 'closure');
-    if (closureItems.length === 0) {
-      // 沒 group 標記就用通用渲染
+    const investigationItems = checklist.filter(it => it.group === 'investigation');
+    const notCaseItem = checklist.find(it => it.group === 'not_case');
+    // 沒 group 標記就用通用渲染
+    if (investigationItems.length === 0 && !notCaseItem) {
       return `<div class="checklist">
         ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,PDCA / 追蹤單逾期未完成,請盡速催開</div>` : ''}
         ${checklist.map(renderItem).join('')}
       </div>`;
     }
+    const isNotCase = !!(notCaseItem && notCaseItem.done);
+    // 若已勾不成案,investigation 整段灰化禁用(視覺上明確,且後端會自動清空)
+    const renderInvestigation = it => {
+      if (isNotCase) {
+        return `<div class="ck-item ck-disabled" title="已勾「不成案」,此項不適用">
+          <span class="ck-mark">○</span>
+          <span style="opacity:0.55;text-decoration:line-through;">${escapeHtml(it.label)}</span>
+        </div>`;
+      }
+      return renderItem(it);
+    };
     return `<div class="checklist">
-      ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,逾期未完成,請盡速催開</div>` : ''}
+      ${hasAnyOverdue && !isNotCase ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,逾期未完成,請盡速催開</div>` : ''}
       ${normalItems.map(renderItem).join('')}
       <div class="ck-section-divider">
-        <span class="ck-section-label">🏁 結案(依 SAC 等級擇一)</span>
+        <span class="ck-section-label">🔍 成案調查路徑</span>
       </div>
       <div style="font-size:16px;color:var(--text2);margin:4px 0 8px 0;">SAC 3 → 做 PDCA · SAC 4 → 開事件追蹤單</div>
-      ${closureItems.map(renderItem).join('')}
+      ${investigationItems.map(renderInvestigation).join('')}
+      ${notCaseItem ? `
+        <div class="ck-section-divider">
+          <span class="ck-section-label">或 ❎ 調查後不成案</span>
+        </div>
+        <div style="font-size:16px;color:var(--text2);margin:4px 0 8px 0;">勾選後 → 上方 SAC/PDCA/追蹤單自動清除,案件以「撤銷通報」結案</div>
+        ${renderItem(notCaseItem)}
+      ` : ''}
     </div>`;
   }
 
@@ -2899,7 +3033,7 @@ function checklistHTML(c) {
 
   // 其他類別維持原樣
   return `<div class="checklist">
-    ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,PDCA / 追蹤單逾期未完成,請盡速催開</div>` : ''}
+    ${hasAnyOverdue ? `<div class="ck-overdue-banner">⚠️ 已建立 ${days} 天,逾期未完成,請盡速處理</div>` : ''}
     ${checklist.map(renderItem).join('')}
   </div>`;
 }
@@ -3599,8 +3733,31 @@ async function toggleCheck(caseId, itemId) {
     if (!confirm(msg)) return;
   }
 
+  // 重大異常:不成案勾下去前先確認
+  if (c.cat === 'event' && itemId === 'not_case' && willCheck) {
+    // 若已勾任一 investigation 項目,提示會被清除
+    const investigationItems = (c.checklist || []).filter(it => it.group === 'investigation');
+    const checkedInvestigation = investigationItems.filter(it => it.done);
+    let msg = '勾「不成案」會以「撤銷通報」結案,確定?';
+    if (checkedInvestigation.length) {
+      msg += `\n\n注意:上方已勾選的 ${checkedInvestigation.map(it => it.label).join('、')} 將被清除。`;
+    }
+    if (!confirm(msg)) return;
+  }
+
   // 樂觀更新:立刻翻轉視覺(不等後端)
   item.done = willCheck;
+  // 重大異常互斥處理:勾不成案 → 清空 investigation;勾 investigation 任一 → 清空不成案
+  let extraClears = [];
+  if (c.cat === 'event' && willCheck) {
+    if (itemId === 'not_case') {
+      extraClears = (c.checklist || []).filter(it => it.group === 'investigation' && it.done);
+    } else if (item.group === 'investigation') {
+      const notCaseItem = (c.checklist || []).find(it => it.id === 'not_case' && it.done);
+      if (notCaseItem) extraClears = [notCaseItem];
+    }
+    extraClears.forEach(it => { it.done = false; });
+  }
   // 部分重新渲染 — 找到該 checklist 區塊重畫
   const els = document.querySelectorAll(`[onclick*="toggleCheck('${caseId}','${itemId}')"]`);
   els.forEach(el => {
@@ -3612,9 +3769,14 @@ async function toggleCheck(caseId, itemId) {
   if (!r || !r.ok) {
     // revert
     item.done = !willCheck;
+    extraClears.forEach(it => { it.done = true; });
     els.forEach(el => el.classList.toggle('done', item.done));
     toast(r ? r.error : '更新失敗');
     return;
+  }
+  // 額外清除的項目也要同步到後端
+  for (const cleared of extraClears) {
+    await api('toggleCheck', { caseId, itemId: cleared.id });
   }
 
   // 提示訊息
@@ -3625,6 +3787,9 @@ async function toggleCheck(caseId, itemId) {
   if (c.cat === 'repair' && !willCheck) {
     if (itemId === 'completed' && c.state === 'pending_approval') toast('已取消維修完成,案件回到處理中');
     else if (itemId === 'disposal' && c.state === 'need_decision') toast('已取消報廢建議,案件回到處理中');
+  }
+  if (c.cat === 'event' && itemId === 'not_case' && willCheck) {
+    toast('❎ 已標記不成案,記得手動送批准結案');
   }
   refreshAll();
 }
@@ -3680,9 +3845,21 @@ async function unsubmit(caseId) {
 }
 
 async function approveCase(caseId) {
-  if (!confirm('確認批准封緘?封緘後不可再修改。')) return;
+  const c = state.cases.find(x => x.id === caseId);
+  const isNotCaseEvent = c && isNotCase(c);
+  const msg = isNotCaseEvent
+    ? '確認以「不成案 / 撤銷通報」結案?\n\n封緘後不可再修改。'
+    : '確認批准封緘?封緘後不可再修改。';
+  if (!confirm(msg)) return;
   const r = await api('approve', { caseId });
-  if (r && r.ok) { toast('已封緘'); refreshAll(); }
+  if (r && r.ok) {
+    // 不成案案件:封緘時自動寫一筆結案備註,方便日後查詢
+    if (isNotCaseEvent) {
+      await appendProgressNote(caseId, `❎ 結案:調查後不符合事件定義,撤銷通報 (批准:${state.user.displayName})`);
+    }
+    toast(isNotCaseEvent ? '已封緘(不成案)' : '已封緘');
+    refreshAll();
+  }
   else toast(r ? r.error : '失敗');
 }
 
@@ -4702,6 +4879,16 @@ function renderSearchPane() {
             </select>
           </div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:8px;">
+          <div>
+            <label>結案路徑(僅重大異常適用)</label>
+            <select id="sn-outcome">
+              <option value="">全部(含成案、不成案、未結案)</option>
+              <option value="not_case">❎ 僅不成案(調查後撤銷通報)</option>
+              <option value="case">🔍 僅成案(走 PDCA / 追蹤單)</option>
+            </select>
+          </div>
+        </div>
         <div style="font-size:16px;color:var(--text2);margin-top:6px;">💡 選「已封緘」才會看到 3 天以前的歷史紀錄</div>
         <button class="primary" style="margin-top:14px;width:100%;font-size:21px;padding:12px;" onclick="doSearch()">🔎 搜尋</button>
       </div>
@@ -4748,19 +4935,35 @@ async function doSearch() {
     days: document.getElementById('sn-days').value,
     state: document.getElementById('sn-state').value,
   };
+  const outcome = document.getElementById('sn-outcome').value; // '' / 'not_case' / 'case'
   const root = document.getElementById('search-results');
   root.innerHTML = '<div class="loading">搜尋中...</div>';
   const r = await api('searchCases', { params });
   if (!r || !r.ok) { root.innerHTML = '<div class="empty">搜尋失敗</div>'; return; }
-  if (!r.results.length) {
+  // 結案路徑前端二次篩選(不動 GAS,因 not_case 在 checklist 內部需要解析)
+  let results = r.results || [];
+  let total = r.total;
+  let filteredNote = '';
+  if (outcome && results.length) {
+    const before = results.length;
+    if (outcome === 'not_case') {
+      results = results.filter(c => isNotCase(c));
+    } else if (outcome === 'case') {
+      // 成案 = 重大異常 且 沒勾不成案
+      results = results.filter(c => c.cat === 'event' && !isNotCase(c));
+    }
+    total = results.length;
+    filteredNote = ` · 已套用結案路徑篩選(${before} → ${total})`;
+  }
+  if (!results.length) {
     root.innerHTML = '<div class="empty" style="font-size:18px;padding:30px;">沒有找到符合的案件,試試放寬條件</div>';
     return;
   }
   root.innerHTML = `
     <div style="font-size:18px;color:var(--text2);margin-bottom:12px;">
-      找到 ${r.total} 筆${r.truncated ? '(僅顯示最新 100 筆,請增加篩選條件)' : ''}
+      找到 ${total} 筆${r.truncated ? '(僅顯示最新 100 筆,請增加篩選條件)' : ''}${filteredNote}
     </div>
-    ${r.results.map(c => searchResultCard(c)).join('')}
+    ${results.map(c => searchResultCard(c)).join('')}
   `;
 }
 
@@ -4770,6 +4973,7 @@ function searchResultCard(c) {
                     : c.state === 'pending_approval' ? '<span class="badge b-amber">待批准</span>'
                     : '<span class="badge b-green">處理中</span>';
   const archivedBadge = String(c.deleted) === 'yes' ? '<span class="badge b-gray">已歸檔</span>' : '';
+  const notCaseBadge = isNotCase(c) ? '<span class="badge badge-notcase">❎ 不成案</span>' : '';
   const lastP = c.progress && c.progress.length ? c.progress[c.progress.length-1] : null;
   return `
     <div class="card" style="cursor:pointer;" onclick="jumpToCaseFromSearch('${c.cat}','${c.id}','${String(c.deleted)==='yes'}')">
@@ -4778,7 +4982,7 @@ function searchResultCard(c) {
           <div class="card-title">${escapeHtml(c.title)}</div>
           <div class="card-meta">[${escapeHtml(catLabel)}] ${escapeHtml(c.subType||'')} · ${escapeHtml(String(c.created).split(' ')[0])}</div>
         </div>
-        <div class="badges">${stateBadge}${archivedBadge}</div>
+        <div class="badges">${stateBadge}${notCaseBadge}${archivedBadge}</div>
       </div>
       ${c.detail ? `<div class="card-body" style="font-size:18px;color:var(--text2);">${escapeHtml(c.detail).substring(0, 150)}${c.detail.length > 150 ? '...' : ''}</div>` : ''}
       ${lastP ? `<div style="font-size:18px;color:var(--text2);margin-top:8px;">▸ ${escapeHtml(lastP.text)}</div>` : ''}
@@ -5216,9 +5420,10 @@ function defaultChecklist(catId, opts) {
     ],
     event: [
       { id: 'reported',     label: '班內主管知會',          done: false },
-      { id: 'sac_decision', label: '病安 SAC 決策',         done: false },
-      { id: 'pdca',         label: 'PDCA 完成 (SAC 3)',     done: false, group: 'closure' },
-      { id: 'tracking',     label: '事件追蹤單繳交 (SAC 4)', done: false, group: 'closure' },
+      { id: 'sac_decision', label: '病安 SAC 決策',         done: false, group: 'investigation' },
+      { id: 'pdca',         label: 'PDCA 完成 (SAC 3)',     done: false, group: 'investigation' },
+      { id: 'tracking',     label: '事件追蹤單繳交 (SAC 4)', done: false, group: 'investigation' },
+      { id: 'not_case',     label: '❎ 調查後不成案,撤銷通報', done: false, group: 'not_case' },
       { id: 'notified',     label: '已告知當事人結果',      done: false },
     ],
     complaint: tier === 2 ? [

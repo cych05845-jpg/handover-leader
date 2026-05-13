@@ -420,11 +420,65 @@
   /* 交班宣導 */
   .card.announce { border-left: 4px solid #b8860b; box-shadow: 0 1px 3px rgba(184,134,11,0.15), 0 1px 2px rgba(0,0,0,0.06); }
   .announce-banner { background: linear-gradient(90deg, #fff8e1 0%, #fff4dc 100%); color: #5d4407; padding: 8px 14px; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 21px; margin: -18px -20px 12px -20px; border-bottom: 2px solid #b8860b; }
+  .announce-banner-detail {
+    background: linear-gradient(180deg, #fff8e1 0%, #fff4dc 100%);
+    color: #5d4407;
+    padding: 12px 16px 14px;
+    border-radius: 8px 8px 0 0;
+    margin: -18px -20px 14px -20px;
+    border-bottom: 2px solid #b8860b;
+  }
+  .announce-banner-detail .ab-head { font-weight: 700; font-size: 21px; margin-bottom: 8px; }
+  .announce-banner-detail .ab-line {
+    font-size: 19px;
+    line-height: 1.6;
+    padding: 4px 0;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .announce-banner-detail .ab-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+    margin-top: 2px;
+  }
+  .announce-banner-detail .ab-prevent {
+    background: rgba(255,255,255,0.5);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-top: 4px;
+    font-weight: 600;
+  }
+  .announce-banner-detail .ab-empty {
+    font-size: 18px;
+    color: #92702a;
+    font-style: italic;
+    line-height: 1.5;
+    padding: 4px 0;
+  }
+  .announce-banner-detail .ab-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .announce-banner-detail .ab-actions button {
+    background: rgba(255,255,255,0.7);
+    border: 1px solid #b8860b;
+    color: #5d4407;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  .announce-banner-detail .ab-actions button:hover {
+    background: #fff;
+  }
   .announce-btn-active { background: #fff4dc !important; color: #5d4407 !important; border-color: #b8860b !important; font-weight: 700; }
 
   /* 交班摘要的宣導區塊(最顯眼)*/
   .hd-section.hd-announce { background: linear-gradient(180deg, #fff4dc 0%, #ffe8a8 100%); border-color: #b8860b; border-width: 2px; }
   .hd-announce .hd-h { color: #5d4407; }
+  .hd-ann-line { font-size: 19px; line-height: 1.6; padding: 3px 0; color: #5d4407; }
+  .hd-ann-prevent { background: rgba(255,255,255,0.6); border-radius: 5px; padding: 4px 8px; margin-top: 2px; font-weight: 600; }
   .hd-status { color: var(--text2); font-size: 24px; font-weight: 500; background: rgba(255,255,255,0.6); padding: 2px 10px; border-radius: 6px; }
 
   /* 返回交班摘要的浮動按鈕 */
@@ -1121,11 +1175,19 @@ async function showApp() {
 }
 
 // ====== Refresh ======
+// 追蹤使用者最近一次滑動時間,輪詢遇上活躍滑動時延後執行
+let lastUserScrollTime = 0;
+window.addEventListener('scroll', () => { lastUserScrollTime = Date.now(); }, { passive: true });
+
 async function refreshAll(showToast) {
   // 在這些分頁時,輪詢不重新渲染(避免洗掉 AI 結果、搜尋結果等)
   const isPolling = !showToast; // 手動按重新整理會帶 showToast=true
   const protectedTabs = ['stats', 'search', 'archived'];
   const onProtectedTab = protectedTabs.indexOf(state.activeTab) >= 0;
+
+  // 若使用者最近 3 秒內正在滑動,延後重渲染(避免畫面跳動)
+  // 但仍取資料,讓下次渲染時是新資料
+  const userActivelyScrolling = isPolling && (Date.now() - lastUserScrollTime < 3000);
 
   // 記錄滑動位置(渲染後恢復)
   const scrollY = window.scrollY;
@@ -1134,12 +1196,23 @@ async function refreshAll(showToast) {
   if (!r || !r.ok) {
     state.cases = state.cases || [];
     state.notes = state.notes || [];
-    if (!isPolling || !onProtectedTab) renderAll();
+    if (!isPolling || !onProtectedTab) {
+      if (!userActivelyScrolling) renderAll();
+    }
     if (r && r.error) toast('資料載入失敗:' + r.error);
     return;
   }
   state.cases = r.cases || [];
   state.notes = r.notes || [];
+
+  if (userActivelyScrolling) {
+    // 滑動中只更新 sidebar 徽章 + summary 數字,不洗掉分頁內容
+    // 等使用者停下來後下一輪輪詢再完整渲染
+    renderSummary();
+    renderPendingBar();
+    renderTabs();
+    return;
+  }
 
   if (isPolling && onProtectedTab) {
     // 輪詢時若在受保護分頁,只更新 sidebar 徽章 + summary 數字,不洗掉分頁內容
@@ -1148,9 +1221,22 @@ async function refreshAll(showToast) {
     renderTabs();
     // 不呼叫 renderPanes()
   } else {
+    // 渲染前先 reserve panes 容器當前高度,避免 innerHTML 清空時頁面瞬間變短→跳頂
+    const panesEl = document.getElementById('panes');
+    let reservedHeight = 0;
+    if (panesEl) {
+      reservedHeight = panesEl.offsetHeight;
+      if (reservedHeight) panesEl.style.minHeight = reservedHeight + 'px';
+    }
+
     renderAll();
-    // 渲染完恢復滑動位置(避免使用者正在滑的時候被打回頂部)
-    window.scrollTo({ top: scrollY });
+
+    // 渲染完恢復滑動位置 + 釋放 minHeight
+    // 用 requestAnimationFrame 確保 DOM 已 layout
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY });
+      if (panesEl) panesEl.style.minHeight = '';
+    });
   }
 
   if (showToast) toast('已更新');
@@ -1533,13 +1619,57 @@ function renderAnnouncePane() {
     return;
   }
 
+  // 進入宣導分頁:自動展開所有宣導卡片,讓人員一眼看到話術
+  if (!state.expanded) state.expanded = new Set();
+  items.forEach(c => state.expanded.add(c.id));
+
+  // 統計:多少件有填三題話術
+  const withText = items.filter(c => {
+    const at = (c.flags && c.flags.announceText) || {};
+    return at.what || at.action || at.prevent;
+  });
+
   let html = `
-    <div style="background:#fff8e1;color:#5d4407;padding:14px 18px;border-radius:10px;margin-bottom:14px;font-size:21px;font-weight:600;border-left:4px solid #b8860b;">
-      🔔 共 ${items.length} 件需在交班時口頭宣導
+    <div style="background:#fff8e1;color:#5d4407;padding:14px 18px;border-radius:10px;margin-bottom:14px;font-size:21px;font-weight:600;border-left:4px solid #b8860b;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div>🔔 共 ${items.length} 件需在交班時口頭宣導${items.length > 0 ? ` <span style="font-size:17px;font-weight:400;opacity:0.8;">(${withText.length}/${items.length} 件已填三題話術)</span>` : ''}</div>
+      <button onclick="copyAllAnnounceScripts()" style="font-size:18px;padding:8px 16px;background:#fff;border:1px solid #b8860b;color:#5d4407;border-radius:6px;cursor:pointer;">📋 複製全部話術</button>
     </div>
   `;
   html += items.map(c => cardHTML(c)).join('');
   root.innerHTML = html;
+}
+
+// 複製所有宣導話術(給 LINE 群、班會用)
+async function copyAllAnnounceScripts() {
+  const items = state.cases
+    .filter(c => c.flags && c.flags.announce && String(c.deleted || '') !== 'yes')
+    .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')));
+  if (!items.length) { toast('沒有宣導事項'); return; }
+  const lines = ['【交班宣導】'];
+  items.forEach((c, i) => {
+    const at = (c.flags && c.flags.announceText) || {};
+    const hasText = at.what || at.action || at.prevent;
+    if (hasText) {
+      lines.push(`\n${i+1}. ${at.what || c.title}`);
+      if (at.action) lines.push(`   ⚠️ ${at.action}`);
+      if (at.prevent) lines.push(`   🎯 ${at.prevent}`);
+    } else {
+      lines.push(`\n${i+1}. ${c.title}`);
+    }
+  });
+  const text = lines.join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`已複製 ${items.length} 件宣導話術`);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); toast(`已複製 ${items.length} 件`); }
+    catch (e2) { toast('複製失敗'); }
+    document.body.removeChild(ta);
+  }
 }
 
 // ====== 採購中分頁 ======
@@ -2161,7 +2291,7 @@ function cardHTML(c) {
 
   return `<div class="card ${stateClass} ${tierClass} ${runawayClass} ${announceClass} ${expandedClass} ${stale ? 'stale' : ''}" onclick="toggleExpand('${c.id}', event)">
 
-    ${announce ? `<div class="announce-banner">🔔 交班需口頭宣導</div>` : ''}
+    ${announce ? renderAnnounceBanner(c, isExpanded) : ''}
 
     ${c.state === 'pending_approval' ? `<div class="approval-banner">${isApprover() ? `⏸ 等你批准 → 封緘${c.waitingFor && c.waitingFor !== '處理中' ? ` <span style="opacity:0.8;font-weight:500;">(${escapeHtml(c.waitingFor)})</span>` : ''}` : `⏸ 等護理長/副護理長批准 → 封緘`}</div>` : ''}
 
@@ -2419,12 +2549,118 @@ async function toggleAnnounce(caseId) {
   const c = state.cases.find(x => x.id === caseId);
   if (!c) return;
   const cur = !!(c.flags && c.flags.announce);
-  const newFlags = { ...(c.flags || {}), announce: !cur };
-  const r = await api('updateCase', { caseId, updates: { flags: newFlags } });
-  if (r && r.ok) {
-    toast(cur ? '已取消宣導' : '已標記為交班宣導');
-    refreshAll();
-  } else toast(r ? r.error : '更新失敗');
+  // 取消宣導:直接執行,不跳 modal
+  if (cur) {
+    const newFlags = { ...(c.flags || {}), announce: false };
+    // 保留 announceText 物件,以便日後若再次標宣導,話術還在
+    const r = await api('updateCase', { caseId, updates: { flags: newFlags } });
+    if (r && r.ok) { toast('已取消宣導'); refreshAll(); }
+    else toast(r ? r.error : '更新失敗');
+    return;
+  }
+  // 標宣導:跳三題引導 modal
+  openAnnounceModal(caseId);
+}
+
+// 三題引導 modal:幫助人員寫出有結構的宣導(避免重複發生)
+function openAnnounceModal(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const at = (c.flags && c.flags.announceText) || {};
+  // 預設值:what 用案件標題,其他空白
+  const defaultWhat = at.what || c.title || '';
+  const defaultAction = at.action || '';
+  const defaultPrevent = at.prevent || '';
+
+  showModal('🔔 標為交班宣導', `
+    <div style="background:#fff8e1;color:#5d4407;padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:18px;line-height:1.5;">
+      <strong>用三句話讓同仁知道重點。</strong>填得越具體,越能避免下次再發生。
+    </div>
+    <label>📌 發生了什麼?</label>
+    <input id="ann-what" placeholder="例:ER101 床滲水" value="${escapeHtml(defaultWhat)}">
+
+    <label style="margin-top:10px;">⚠️ 現在請大家做什麼?</label>
+    <input id="ann-action" placeholder="例:暫不收治該床,改用 ER102/103" value="${escapeHtml(defaultAction)}">
+
+    <label style="margin-top:10px;">🎯 怎麼避免再發生?<span style="color:var(--text3);font-weight:400;">(選填,但效果最好)</span></label>
+    <input id="ann-prevent" placeholder="例:發現床位滲水立即回報,避免儀器受損" value="${escapeHtml(defaultPrevent)}">
+    <div style="font-size:15px;color:var(--text3);margin-top:4px;line-height:1.5;">
+      💡 想想看:這事件怎麼發生的?以後同仁該注意什麼動作或習慣?
+    </div>
+  `, async () => {
+    const what = document.getElementById('ann-what').value.trim();
+    const action = document.getElementById('ann-action').value.trim();
+    const prevent = document.getElementById('ann-prevent').value.trim();
+    if (!what) { toast('「發生了什麼」必填'); return false; }
+    const announceText = { what, action, prevent };
+    const newFlags = { ...(c.flags || {}), announce: true, announceText };
+    const r = await api('updateCase', { caseId, updates: { flags: newFlags } });
+    if (r && r.ok) { toast('已標記為交班宣導'); refreshAll(); return true; }
+    toast(r ? r.error : '更新失敗');
+    return false;
+  });
+}
+
+// 將三題組合成口頭話術(用於宣導分頁、交班摘要、複製按鈕)
+function buildAnnounceScript(c) {
+  const at = (c.flags && c.flags.announceText) || {};
+  // 沒填三題:fallback 用案件標題
+  if (!at.what && !at.action && !at.prevent) {
+    return c.title || '';
+  }
+  const parts = [];
+  if (at.what) parts.push(at.what);
+  if (at.action) parts.push(at.action);
+  if (at.prevent) parts.push(`提醒大家:${at.prevent}`);
+  return parts.join(',');
+}
+
+// 案件卡片上的宣導 banner;摺疊時只顯示一行,展開時顯示三句話術 + 操作按鈕
+function renderAnnounceBanner(c, isExpanded) {
+  const at = (c.flags && c.flags.announceText) || {};
+  const hasText = !!(at.what || at.action || at.prevent);
+  if (!isExpanded) {
+    // 摺疊狀態:沿用舊版簡潔樣式
+    return '<div class="announce-banner">🔔 交班需口頭宣導</div>';
+  }
+  // 展開狀態:顯示完整話術
+  const editBtn = !isReadOnly() ? `<button onclick="event.stopPropagation();openAnnounceModal('${c.id}')" style="font-size:16px;padding:4px 10px;">✏️ 編輯話術</button>` : '';
+  const copyBtn = `<button onclick="event.stopPropagation();copyAnnounceScript('${c.id}')" style="font-size:16px;padding:4px 10px;">📋 複製話術</button>`;
+  if (!hasText) {
+    // 已標宣導但沒填三題:鼓勵填寫
+    return `<div class="announce-banner-detail">
+      <div class="ab-head">🔔 交班需口頭宣導</div>
+      <div class="ab-empty">尚未填寫話術 — 點「編輯話術」用三句話讓同仁知道重點。</div>
+      <div class="ab-actions">${editBtn}${copyBtn}</div>
+    </div>`;
+  }
+  return `<div class="announce-banner-detail">
+    <div class="ab-head">🔔 交班需口頭宣導</div>
+    ${at.what ? `<div class="ab-line"><span class="ab-icon">📌</span>${escapeHtml(at.what)}</div>` : ''}
+    ${at.action ? `<div class="ab-line"><span class="ab-icon">⚠️</span>${escapeHtml(at.action)}</div>` : ''}
+    ${at.prevent ? `<div class="ab-line ab-prevent"><span class="ab-icon">🎯</span>${escapeHtml(at.prevent)}</div>` : ''}
+    <div class="ab-actions">${editBtn}${copyBtn}</div>
+  </div>`;
+}
+
+// 複製宣導話術到剪貼簿
+async function copyAnnounceScript(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const script = buildAnnounceScript(c);
+  try {
+    await navigator.clipboard.writeText(script);
+    toast('話術已複製');
+  } catch (e) {
+    // fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = script;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); toast('話術已複製'); }
+    catch (e2) { toast('複製失敗,請手動選取'); }
+    document.body.removeChild(ta);
+  }
 }
 
 // 病人離院的一週倒數提醒
@@ -5579,7 +5815,18 @@ function genHandover() {
   );
   if (announceItems.length) {
     txt += `🔔 交班宣導(${announceItems.length} 件,需口頭講)\n`;
-    announceItems.forEach(c => txt += `  • [${CATS.find(x=>x.id===c.cat).label}] ${c.title}\n`);
+    announceItems.forEach((c, i) => {
+      const at = (c.flags && c.flags.announceText) || {};
+      const hasText = at.what || at.action || at.prevent;
+      if (hasText) {
+        txt += `  ${i+1}. [${CATS.find(x=>x.id===c.cat).label}]\n`;
+        if (at.what)    txt += `     📌 ${at.what}\n`;
+        if (at.action)  txt += `     ⚠️ ${at.action}\n`;
+        if (at.prevent) txt += `     🎯 ${at.prevent}\n`;
+      } else {
+        txt += `  ${i+1}. [${CATS.find(x=>x.id===c.cat).label}] ${c.title}\n`;
+      }
+    });
     txt += '\n';
   }
 
@@ -5635,12 +5882,26 @@ function genHandover() {
   if (announceItems.length) {
     html += `<div class="hd-section hd-announce">
       <div class="hd-h">🔔 交班宣導(口頭講) <span class="hd-count">${announceItems.length}</span></div>
-      ${announceItems.map(c => `
-        <div class="hd-row hd-clickable" onclick="jumpToCase('${c.cat}','${c.id}')">
-          <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
-          <span class="hd-title">${escapeHtml(c.title)}</span>
-          ${c.waitingFor && c.waitingFor !== "處理中" ? `<span class="hd-status">${escapeHtml(c.waitingFor)}</span>` : ""}
-        </div>`).join('')}
+      ${announceItems.map(c => {
+        const at = (c.flags && c.flags.announceText) || {};
+        const hasText = !!(at.what || at.action || at.prevent);
+        if (!hasText) {
+          // 沒填三題:走原本簡略樣式
+          return `<div class="hd-row hd-clickable" onclick="jumpToCase('${c.cat}','${c.id}')">
+            <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
+            <span class="hd-title">${escapeHtml(c.title)}</span>
+            ${c.waitingFor && c.waitingFor !== "處理中" ? `<span class="hd-status">${escapeHtml(c.waitingFor)}</span>` : ""}
+          </div>`;
+        }
+        return `<div class="hd-row hd-row-block hd-clickable" onclick="jumpToCase('${c.cat}','${c.id}')">
+          <div>
+            <span class="hd-cat">${CATS.find(x=>x.id===c.cat).label}</span>
+          </div>
+          ${at.what ? `<div class="hd-ann-line"><span style="opacity:0.7;">📌</span> ${escapeHtml(at.what)}</div>` : ''}
+          ${at.action ? `<div class="hd-ann-line"><span style="opacity:0.7;">⚠️</span> ${escapeHtml(at.action)}</div>` : ''}
+          ${at.prevent ? `<div class="hd-ann-line hd-ann-prevent"><span style="opacity:0.7;">🎯</span> ${escapeHtml(at.prevent)}</div>` : ''}
+        </div>`;
+      }).join('')}
     </div>`;
   }
 

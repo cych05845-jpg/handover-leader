@@ -1176,8 +1176,13 @@ async function showApp() {
 
 // ====== Refresh ======
 // 追蹤使用者最近一次滑動時間,輪詢遇上活躍滑動時延後執行
+// scroll 是桌機 + mobile;touchmove/touchstart 是 mobile 觸控滑動(某些手機這比 scroll 更早觸發)
 let lastUserScrollTime = 0;
-window.addEventListener('scroll', () => { lastUserScrollTime = Date.now(); }, { passive: true });
+const updateScrollTime = () => { lastUserScrollTime = Date.now(); };
+window.addEventListener('scroll', updateScrollTime, { passive: true });
+window.addEventListener('touchmove', updateScrollTime, { passive: true });
+window.addEventListener('touchstart', updateScrollTime, { passive: true });
+window.addEventListener('wheel', updateScrollTime, { passive: true });
 
 async function refreshAll(showToast) {
   // 在這些分頁時,輪詢不重新渲染(避免洗掉 AI 結果、搜尋結果等)
@@ -1206,11 +1211,8 @@ async function refreshAll(showToast) {
   state.notes = r.notes || [];
 
   if (userActivelyScrolling) {
-    // 滑動中只更新 sidebar 徽章 + summary 數字,不洗掉分頁內容
-    // 等使用者停下來後下一輪輪詢再完整渲染
-    renderSummary();
-    renderPendingBar();
-    renderTabs();
+    // 滑動中:完全跳過渲染,連 sidebar / summary 都不動
+    // 資料已經更新到 state.cases,等下次 polling(使用者停下後)才會真正渲染
     return;
   }
 
@@ -5778,16 +5780,44 @@ function openNoteModal(note) {
   });
 }
 
+// 檢查 modal 內是否有「使用者輸入過的內容」
+// 用來防止點背景誤關時資料遺失
+function modalHasUserInput(rootEl) {
+  if (!rootEl) return false;
+  // 所有 textarea / input (排除 hidden, button, submit 等)
+  const inputs = rootEl.querySelectorAll('textarea, input[type="text"], input[type="password"], input[type="email"], input[type="tel"], input[type="number"], input[type="search"], input[type="url"], input:not([type])');
+  for (const el of inputs) {
+    const cur = (el.value || '').trim();
+    const def = (el.defaultValue || '').trim();
+    if (cur && cur !== def) return true;  // 有內容且非預設值
+  }
+  // 也檢查 contenteditable
+  const editables = rootEl.querySelectorAll('[contenteditable="true"]');
+  for (const el of editables) {
+    if ((el.textContent || '').trim()) return true;
+  }
+  return false;
+}
+
+// 嘗試關閉 modal(若有未儲存內容,先確認)
+function tryCloseModal() {
+  const root = document.getElementById('modal-root');
+  if (modalHasUserInput(root)) {
+    if (!confirm('有未儲存的內容,確定要關閉嗎?')) return;
+  }
+  closeModal();
+}
+
 // ====== Generic Modal ======
 function showModal(title, contentHTML, onSubmit) {
   const root = document.getElementById('modal-root');
   root.innerHTML = `
-    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal-bg" onclick="if(event.target===this)tryCloseModal()">
       <div class="modal">
         <h2>${title.indexOf('AI') === 0 || title.indexOf('🤖') === 0 ? '<span class="ai-tag ai-tag-lg">AI</span>' + escapeHtml(title.replace(/^AI\s*|^🤖\s*/, '')) : escapeHtml(title)}</h2>
         ${contentHTML}
         <div class="modal-actions">
-          <button onclick="closeModal()">取消</button>
+          <button onclick="tryCloseModal()">取消</button>
           <button class="primary" id="modal-submit">確認</button>
         </div>
       </div>
@@ -6052,12 +6082,12 @@ function showBackToHandoverButton() {
 function showModalLarge(title, contentHTML, onSubmit) {
   const root = document.getElementById('modal-root');
   root.innerHTML = `
-    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal-bg" onclick="if(event.target===this)tryCloseModal()">
       <div class="modal modal-large">
         <h2>${title.indexOf('AI') === 0 || title.indexOf('🤖') === 0 ? '<span class="ai-tag ai-tag-lg">AI</span>' + escapeHtml(title.replace(/^AI\s*|^🤖\s*/, '')) : escapeHtml(title)}</h2>
         ${contentHTML}
         <div class="modal-actions">
-          <button onclick="closeModal()">關閉</button>
+          <button onclick="tryCloseModal()">關閉</button>
         </div>
       </div>
     </div>`;

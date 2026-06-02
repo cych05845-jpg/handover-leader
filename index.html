@@ -1038,7 +1038,7 @@
 <script>
 // ====== 設定 ======
 const API_URL = 'https://script.google.com/macros/s/AKfycbyUfhENJGp6lcITyAikwXqjwyWqKy5IiPORk7DmwHuo1-K7HB_mQlW_QcmnVbhkCx0T/exec';
-const POLL_MS = 30000; // 30 秒輪詢
+const POLL_MS = 60000; // 60 秒輪詢(從 30 秒拉長,降低系統負擔。leader 看到資料晚 30 秒不影響工作)
 
 // ====== State ======
 const state = {
@@ -1085,6 +1085,7 @@ async function api(action, payload = {}) {
   });
   const params = new URLSearchParams(flat);
   const queryStr = params.toString();
+  const t0 = performance.now();
 
   try {
     let res;
@@ -1104,6 +1105,13 @@ async function api(action, payload = {}) {
       });
     }
     const text = await res.text();
+    const t1 = performance.now();
+    // 任何 >2 秒的 API 都印出來警告(平時不污染 console)
+    const ms = Math.round(t1 - t0);
+    if (ms > 2000 || window._debugPerf) {
+      const tag = ms > 5000 ? '🔴' : ms > 2000 ? '🟡' : '🟢';
+      console.log(`${tag} [api] ${action} ${ms}ms · payload ${queryStr.length}字 · 回應 ${text.length}字`);
+    }
     let data;
     try { data = JSON.parse(text); }
     catch (e) {
@@ -1184,6 +1192,20 @@ window.addEventListener('touchmove', updateScrollTime, { passive: true });
 window.addEventListener('touchstart', updateScrollTime, { passive: true });
 window.addEventListener('wheel', updateScrollTime, { passive: true });
 
+// 追蹤上次資料的指紋,輪詢時若指紋一樣就跳過所有渲染
+// 指紋包含:每 case 的 id+updatedAt+state+announce+checklist done 數+progress 數
+let lastDataFingerprint = '';
+function dataFingerprint(cases, notes) {
+  const cs = (cases || []).map(c => {
+    const ck = (c.checklist || []).filter(x => x.done).length;
+    const pg = (c.progress || []).length;
+    const an = !!(c.flags && c.flags.announce);
+    return `${c.id}|${c.updatedAt || c.created}|${c.state}|${an?1:0}|${ck}|${pg}|${c.deleted || ''}`;
+  }).join(';');
+  const ns = (notes || []).map(n => `${n.id}|${n.updatedAt || ''}`).join(';');
+  return cs.length + '#' + cs + '~' + ns;
+}
+
 async function refreshAll(showToast) {
   // 在這些分頁時,輪詢不重新渲染(避免洗掉 AI 結果、搜尋結果等)
   const isPolling = !showToast; // 手動按重新整理會帶 showToast=true
@@ -1209,6 +1231,25 @@ async function refreshAll(showToast) {
   }
   state.cases = r.cases || [];
   state.notes = r.notes || [];
+
+  // 記錄目前資料量,F12 可看(觀察是否累積太多舊資料)
+  if (window._debugPerf) {
+    const openCount = state.cases.filter(c => c.state !== 'closed').length;
+    const closedCount = state.cases.length - openCount;
+    console.log(`[perf] 資料: 全部 ${state.cases.length} 件 (未結 ${openCount} / 已封緘 ${closedCount})`);
+  }
+
+  // 計算資料指紋,若跟上次一樣 → 跳過渲染(輪詢的 95% 情況都會走這條路)
+  const fp = dataFingerprint(state.cases, state.notes);
+  const dataUnchanged = (fp === lastDataFingerprint);
+  lastDataFingerprint = fp;
+
+  if (isPolling && dataUnchanged) {
+    // 資料完全沒變,任何渲染都是浪費,直接 return
+    // (可在 console 確認:輪詢時若印「skip render」表示優化生效)
+    if (window._debugPerf) console.log('[perf] 輪詢跳過渲染', new Date().toLocaleTimeString());
+    return;
+  }
 
   if (userActivelyScrolling) {
     // 滑動中:完全跳過渲染,連 sidebar / summary 都不動
@@ -1363,18 +1404,40 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+// 渲染時暫存的「按類別分組」索引,只在 renderAll 一開始建立一次
+// 所有渲染子函數都從這裡拿,避免每個函數各自 filter state.cases
+// (大型 cases 陣列下這能大幅減少遍歷次數)
+let _renderCache = null;
+function buildRenderCache() {
+  const byCat = {};
+  const notDeleted = [];
+  for (const c of (state.cases || [])) {
+    if (String(c.deleted || '') === 'yes') continue;
+    notDeleted.push(c);
+    if (!byCat[c.cat]) byCat[c.cat] = [];
+    byCat[c.cat].push(c);
+  }
+  return { byCat, notDeleted };
+}
+
 function renderAll() {
+  _renderCache = buildRenderCache();
   renderSummary();
   renderPendingBar();
   renderTabs();
   renderPanes();
+  _renderCache = null; // 釋放,避免下次資料變了還用舊快取
 }
 
 function renderSummary() {
   const trackable = CATS.filter(c => c.hasTracking);
   const since = getDashboardCountSince(); // '' 或 'YYYY-MM-DD'
+  // 從 cache 取,沒 cache 時 fallback 到 filter(例如:非 renderAll 路徑呼叫)
+  const cacheByCat = _renderCache ? _renderCache.byCat : null;
   const cards = trackable.map(c => {
-    const all = state.cases.filter(x => x.cat === c.id);
+    const all = cacheByCat
+      ? (cacheByCat[c.id] || [])
+      : state.cases.filter(x => x.cat === c.id && String(x.deleted || '') !== 'yes');
     // 套用起算日:分母只算起算日之後建立的案件
     const allCounted = since ? all.filter(x => caseAfterSince(x, since)) : all;
     // 請修卡:未結案 = state!==closed 且 不在採購中流程(跟分頁清單一致)
@@ -4094,21 +4157,45 @@ async function unsubmit(caseId) {
 
 async function approveCase(caseId) {
   const c = state.cases.find(x => x.id === caseId);
-  const isNotCaseEvent = c && isNotCase(c);
+  if (!c) return;
+  const isNotCaseEvent = isNotCase(c);
   const msg = isNotCaseEvent
     ? '確認以「不成案 / 撤銷通報」結案?\n\n封緘後不可再修改。'
     : '確認批准封緘?封緘後不可再修改。';
   if (!confirm(msg)) return;
+
+  // 樂觀更新:立刻在前端把狀態改為 closed,使用者立刻看到封緘效果
+  // 背景送 API,失敗才 revert
+  const prevState = c.state;
+  const prevClosedAt = c.closedAt;
+  const prevClosedBy = c.closedBy;
+  c.state = 'closed';
+  c.closedAt = nowStr();
+  c.closedBy = state.user.displayName;
+  // 局部重渲染,不重撈資料
+  renderSummary();
+  renderTabs();
+  renderPanes();
+  toast(isNotCaseEvent ? '已封緘(不成案)' : '已封緘');
+
+  // 背景送 API
   const r = await api('approve', { caseId });
   if (r && r.ok) {
-    // 不成案案件:封緘時自動寫一筆結案備註,方便日後查詢
     if (isNotCaseEvent) {
       await appendProgressNote(caseId, `❎ 結案:調查後不符合事件定義,撤銷通報 (批准:${state.user.displayName})`);
     }
-    toast(isNotCaseEvent ? '已封緘(不成案)' : '已封緘');
+    // API 成功,背景刷新拿最新資料(此時使用者已經看到封緘畫面好幾秒了)
     refreshAll();
+  } else {
+    // 失敗:revert 前端狀態
+    c.state = prevState;
+    c.closedAt = prevClosedAt;
+    c.closedBy = prevClosedBy;
+    renderSummary();
+    renderTabs();
+    renderPanes();
+    toast(r ? r.error : '封緘失敗,已還原');
   }
-  else toast(r ? r.error : '失敗');
 }
 
 async function escalateTier(caseId) {
@@ -4502,16 +4589,90 @@ function openStaffInfo(caseId) {
 
 // ====== 上傳附件 ======
 function openUpload(caseId) {
-  showModal('上傳設備/現場照', `
-    <div style="background:var(--red-bg);color:var(--red-text);padding:10px 12px;border-radius:6px;font-size: 18px;margin-bottom:12px;line-height:1.6;">
-      ⚠️ <strong>嚴禁上傳含病人資料之影像</strong><br>
-      • 不可:檢傷紀錄、心電圖、影像報告、病歷文件、身分證件<br>
-      • 可以:故障設備、現場狀況、無人名之 SOP / 流程
-    </div>
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) { toast('找不到案件'); return; }
+
+  // 依案件類別決定 modal 標題、警告文字、提示
+  let modalTitle = '上傳附件';
+  let warnHTML = '';
+  let notePlaceholder = '';
+  let acceptTypes = 'image/*,application/pdf';
+
+  if (c.cat === 'repair') {
+    modalTitle = '上傳設備/現場照';
+    warnHTML = `
+      <div style="background:var(--red-bg);color:var(--red-text);padding:10px 12px;border-radius:6px;font-size:18px;margin-bottom:12px;line-height:1.6;">
+        ⚠️ <strong>請勿上傳含病人資料之影像</strong><br>
+        • 不可:檢傷紀錄、心電圖、影像報告、病歷文件、身分證件<br>
+        • 可以:故障設備、現場狀況、無人名之 SOP / 流程
+      </div>`;
+    notePlaceholder = '例:急救室 #2 監視器黑屏狀態';
+  }
+  else if (c.cat === 'event' || c.cat === 'clinical') {
+    modalTitle = '上傳異常文件';
+    warnHTML = `
+      <div style="background:var(--red-bg);color:var(--red-text);padding:10px 12px;border-radius:6px;font-size:18px;margin-bottom:12px;line-height:1.6;">
+        ⚠️ <strong>請避免上傳病人可識別資料</strong><br>
+        • 不可:身分證件、可辨識臉部之影像、完整病歷<br>
+        • 可以:事件單據、SOP 文件、表單(必要時可遮蓋姓名病歷號)
+      </div>`;
+    notePlaceholder = '例:給藥錯誤通報單';
+  }
+  else if (c.cat === 'infection') {
+    modalTitle = '上傳通報單 / 接觸者文件';
+    warnHTML = `
+      <div style="background:#ecfdf5;color:#065f46;padding:10px 12px;border-radius:6px;font-size:18px;margin-bottom:12px;line-height:1.6;border-left:3px solid #10b981;">
+        🦠 <strong>感染管制案件可上傳的文件:</strong><br>
+        • 可以:感管通報單、接觸者名單、PUI 清單、隔離指示<br>
+        • 可以:<strong>檢傷紀錄</strong>(用於還原接觸時序、暴露時間點)<br>
+        • 可以:實驗室報告、清消紀錄、流程文件<br>
+        • 提醒:接觸者名單若含完整姓名/病歷號,建議遮蓋部分後再上傳<br>
+        • 上傳後請勿外流(LINE / 社群 / 私人雲端)
+      </div>`;
+    notePlaceholder = '例:11/15 結核 PUI 接觸者名單 / 檢傷時段紀錄';
+  }
+  else if (c.cat === 'mci') {
+    modalTitle = '上傳 MCI 公文 / 傷患名單';
+    warnHTML = `
+      <div style="background:#fef3c7;color:#92400e;padding:10px 12px;border-radius:6px;font-size:18px;margin-bottom:12px;line-height:1.6;">
+        🚑 <strong>MCI 專用:傷患名單僅供 leader 內部協調用</strong><br>
+        • 可以:醫院公文、傷患分流清單、跨單位協調單<br>
+        • 請勿:現場血腥畫面、可識別傷者臉部、與救治無關的個資<br>
+        • 上傳後請勿外流(LINE / 社群 / 私人雲端)
+      </div>`;
+    notePlaceholder = '例:11/15 國道車禍傷患分流清單';
+  }
+  else if (c.cat === 'trauma' && ['性侵', '家暴', '兒虐'].indexOf(c.subType) >= 0) {
+    const subLabel = c.subType;
+    modalTitle = `上傳 ${subLabel} 表單 / 證物照`;
+    warnHTML = `
+      <div style="background:#fef3c7;color:#92400e;padding:10px 12px;border-radius:6px;font-size:18px;margin-bottom:12px;line-height:1.6;">
+        ⚖️ <strong>${subLabel}案件:依法保密,僅供調查協助用</strong><br>
+        ${c.subType === '性侵'
+          ? '• 嚴禁拍攝病人身體;僅可上傳採證套件外觀、轉介單、表單<br>'
+          : '• 可以:通報單、轉介單、社工評估表<br>'}
+        • 請勿上傳可識別當事人臉部或現場照片<br>
+        • 上傳後請勿外流,本案資料受相關法令保護
+      </div>`;
+    notePlaceholder = c.subType === '性侵' ? '例:採證套件編號 / 通報單' : '例:家暴通報單 / 社工評估';
+  }
+  else {
+    // fallback:通用警告
+    warnHTML = `
+      <div style="background:var(--red-bg);color:var(--red-text);padding:10px 12px;border-radius:6px;font-size:18px;margin-bottom:12px;line-height:1.6;">
+        ⚠️ <strong>上傳前請評估資料保密性</strong><br>
+        • 必要的工作文件可上傳,但請勿外流<br>
+        • 完成後請勿在 LINE / 社群 / 私人雲端散布
+      </div>`;
+    notePlaceholder = '可選備註';
+  }
+
+  showModal(modalTitle, `
+    ${warnHTML}
     <label>選擇圖片或檔案</label>
-    <input type="file" id="m-up-file" accept="image/*,application/pdf">
+    <input type="file" id="m-up-file" accept="${acceptTypes}">
     <label>備註(可選)</label>
-    <input id="m-up-note" placeholder="例:急救室 #2 監視器黑屏狀態">
+    <input id="m-up-note" placeholder="${notePlaceholder}">
     <div id="m-up-preview" style="margin-top:10px;"></div>
   `, async () => {
     const fileInput = document.getElementById('m-up-file');

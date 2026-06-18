@@ -1177,6 +1177,12 @@ async function showApp() {
     state.user.role === 'approver' ? '可批准'
     : state.user.role === 'sv' ? '督導(只看)'
     : 'Leader';
+  // 先用上次快取即時顯示,避免登入後對著空白等後端
+  try {
+    const c = JSON.parse(localStorage.getItem('handover_cache') || 'null');
+    if (c && c.cases) { state.cases = c.cases; state.notes = c.notes || []; renderAll(); }
+    else { const pn = document.getElementById('panes'); if (pn) pn.innerHTML = '<div style="padding:48px;text-align:center;color:#888;">載入中…</div>'; }
+  } catch (e) {}
   await refreshAll();
   startPolling();
   startClock();
@@ -1231,6 +1237,7 @@ async function refreshAll(showToast) {
   }
   state.cases = r.cases || [];
   state.notes = r.notes || [];
+  try { localStorage.setItem('handover_cache', JSON.stringify({ cases: state.cases, notes: state.notes, t: Date.now() })); } catch (e) {}
 
   // 記錄目前資料量,F12 可看(觀察是否累積太多舊資料)
   if (window._debugPerf) {

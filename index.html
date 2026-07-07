@@ -79,6 +79,23 @@
   .nav-label { flex: 1; }
   .nav-badge { background: var(--red-text); color: #fff; font-size: 16px; padding: 1px 7px; border-radius: 10px; font-weight: 600; }
   .nav-badge-purple { background: #7c3aed !important; }
+  /* 守則置頂鈕:選單最前、金色高亮,桌機在最上、手機在最左 */
+  .nav-item.nav-pinned { background: rgba(212,160,23,0.18); border: 1px solid rgba(212,160,23,0.55); color: #ffd97a; font-weight: 600; margin-bottom: 8px; }
+  .nav-item.nav-pinned:hover { background: rgba(212,160,23,0.30); }
+  .nav-item.nav-pinned.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .nav-item.nav-pinned .nav-pin-ico { font-size: 18px; flex-shrink: 0; }
+  /* 緊急調科:iframe 彈窗(近全螢幕)+ 請假分頁按鈕 */
+  .adjust-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 19px; font-weight: 600; padding: 10px 14px; width: 100%; justify-content: center; background: #fff7ed; color: #b45309; border: 1.5px solid #fdba74; border-radius: 8px; cursor: pointer; margin-bottom: 10px; transition: all 0.15s; }
+  .adjust-btn:hover { background: #ffedd5; border-color: #f59e0b; }
+  .adjust-frame-wrap { position: fixed; inset: 0; z-index: 300; background: rgba(15,23,42,0.55); display: flex; align-items: center; justify-content: center; padding: 12px; }
+  .adjust-frame-box { background: #fff; border-radius: 12px; width: 100%; max-width: 1080px; height: min(92vh, 900px); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+  .adjust-frame-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; background: #b45309; color: #fff; flex-shrink: 0; }
+  .adjust-frame-head .t { font-size: 19px; font-weight: 700; }
+  .adjust-frame-head .btns { display: flex; gap: 8px; }
+  .adjust-frame-head button { font-size: 17px; padding: 6px 12px; border: 1px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.12); color: #fff; border-radius: 8px; cursor: pointer; }
+  .adjust-frame-head button:hover { background: rgba(255,255,255,0.25); }
+  .adjust-frame-box iframe { flex: 1; width: 100%; border: none; }
+  @media (max-width: 640px) { .adjust-frame-wrap { padding: 0; } .adjust-frame-box { border-radius: 0; height: 100%; max-width: none; } }
 
   /* sidebar 分組標題 */
   .nav-group-h {
@@ -834,6 +851,9 @@
   .note .n-body { font-size: 21px; margin-top: 8px; line-height: 1.7; white-space: pre-wrap; }
   .note .n-meta { font-size: 18px; color: var(--text3); margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .note .n-actions button { font-size: 18px; padding: 3px 9px; }
+  .note.pinned-note { border-color: var(--amber-bd); background: linear-gradient(180deg, #fffaee 0%, var(--bg2) 100%); box-shadow: 0 1px 3px rgba(184,134,11,0.12); }
+  .note .n-pin-badge { display: inline-block; font-size: 15px; color: var(--amber-text); background: var(--amber-bg); border: 1px solid var(--amber-bd); border-radius: 999px; padding: 1px 8px; margin-left: 6px; font-weight: 600; vertical-align: middle; }
+  .note .n-actions button.pinbtn { color: var(--amber-text); border-color: var(--amber-bd); }
 
   /* Modal */
   .modal-bg { position: fixed; inset: 0; background: rgba(15,24,32,0.5); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
@@ -1612,12 +1632,21 @@ function renderTabs() {
     settings: { label: '設定',      items: [] },
   };
   CATS.forEach(c => {
+    if (c.id === 'notes') return;            // 守則改為置頂獨立鈕,不放進一般群組
     const g = c.group || 'cases';
     if (!groups[g]) groups[g] = { label: g, items: [] };
     groups[g].items.push(c);
   });
 
   let html = '';
+  // 守則:釘在整個選單最前(桌機=最上、手機橫列=最左),金色高亮一眼可見
+  const notesCat = CATS.find(x => x.id === 'notes');
+  if (notesCat) {
+    html += `<div class="nav-item nav-pinned ${state.activeTab === 'notes' ? 'active' : ''}" onclick="switchTab('notes')" title="${escapeHtml(notesCat.label)}">
+      <span class="nav-pin-ico">📌</span>
+      <span class="nav-label">${escapeHtml(notesCat.label)}</span>
+    </div>`;
+  }
   Object.keys(groups).forEach(gKey => {
     const g = groups[gKey];
     if (!g.items.length) return;
@@ -2195,6 +2224,11 @@ function renderPane(catId) {
   // 新增按鈕移到頂部(在搜尋框下方,案件清單上方)
   if (!isReadOnly()) {
     html += `<button class="add-btn add-btn-top" onclick="openAddCase('${catId}')">+ 新增${catLabel}案件</button>`;
+  }
+
+  // 請假分頁專屬:緊急調科入口(嵌入排班系統的現場排科調整頁)
+  if (catId === 'leave' && !isReadOnly()) {
+    html += `<button class="adjust-btn" onclick="openSchedulerAdjust()">🔧 緊急調科(請假缺口 → 現場排科調整)</button>`;
   }
 
   // 請修分頁專屬:subType chip 篩選列
@@ -3991,20 +4025,28 @@ function renderNotesPane() {
     <div class="notes-cat" style="margin-top:10px;">
       ${allCats.map(c => `<button class="${c === f.cat ? 'active' : ''}" onclick="setNotesCat('${escapeHtml(c)}')">${escapeHtml(c)}</button>`).join('')}
     </div>
-    ${filtered.length ? filtered.map(n => `
-      <div class="note">
-        <div class="n-cat">${escapeHtml(n.cat)}</div>
+    ${filtered.length ? filtered.slice().sort((a, b) => {
+        const pa = String(a.pinned || '') === 'yes' ? 1 : 0;
+        const pb = String(b.pinned || '') === 'yes' ? 1 : 0;
+        if (pa !== pb) return pb - pa;                                   // 置頂的排最前
+        return String(b.updated || '').localeCompare(String(a.updated || '')); // 其次:最近更新在前
+      }).map(n => {
+        const isPinned = String(n.pinned || '') === 'yes';
+        return `
+      <div class="note ${isPinned ? 'pinned-note' : ''}">
+        <div class="n-cat">${escapeHtml(n.cat)}${isPinned ? '<span class="n-pin-badge">📌 置頂</span>' : ''}</div>
         <div class="n-title">${escapeHtml(n.title)}</div>
         <div class="n-body">${escapeHtml(n.body)}</div>
         <div class="n-meta">
-          <span>${escapeHtml(n.author)} · 更新 ${escapeHtml(n.updated)}</span>
+          <span>${escapeHtml(n.author)} · 更新 ${escapeHtml(String(n.updated || '').slice(0, 10))}</span>
           ${!isReadOnly() ? `<span class="n-actions">
+            <button class="pinbtn" onclick="togglePinNote('${n.id}')">${isPinned ? '取消置頂' : '📌 置頂'}</button>
             <button onclick="openEditNote('${n.id}')">編輯</button>
             <button class="danger" onclick="deleteNote('${n.id}')">刪除</button>
           </span>` : ''}
         </div>
-      </div>
-    `).join('') : '<div class="empty">查無相關守則</div>'}
+      </div>`;
+      }).join('') : '<div class="empty">查無相關守則</div>'}
     ${!isReadOnly() ? `<button class="add-btn" onclick="openAddNote()">+ 新增守則</button>` : ''}
   `;
 }
@@ -4297,6 +4339,51 @@ async function deleteNote(id) {
   const r = await api('deleteNote', { id });
   if (r && r.ok) refreshAll();
 }
+
+async function togglePinNote(id) {
+  const n = state.notes.find(x => x.id === id);
+  if (!n) return;
+  const was = String(n.pinned || '') === 'yes';
+  n.pinned = was ? '' : 'yes';          // 樂觀更新:畫面立即反應
+  renderNotesPane();
+  try {
+    const r = await api('togglePinNote', { id });
+    if (!(r && r.ok)) {                  // 失敗 → 還原
+      n.pinned = was ? 'yes' : '';
+      renderNotesPane();
+      toast((r && r.error) ? r.error : '置頂失敗');
+      return;
+    }
+    n.pinned = r.pinned;                 // 以後端為準
+    renderNotesPane();
+    toast(r.pinned === 'yes' ? '已置頂 📌' : '已取消置頂');
+  } catch (e) {
+    n.pinned = was ? 'yes' : '';
+    renderNotesPane();
+  }
+}
+
+// ====== 緊急調科(嵌入排班系統 leader-adjust)======
+// 密碼由 leader 在調科頁的閘門自行輸入,絕不寫進本檔(公開 repo,寫了等於外洩)
+const SCHEDULER_ADJUST_URL = 'https://cych05845-jpg.github.io/scheduler-leader/leader-adjust.html';
+
+function openSchedulerAdjust() {
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="adjust-frame-wrap" onclick="if(event.target===this)closeSchedulerAdjust()">
+      <div class="adjust-frame-box">
+        <div class="adjust-frame-head">
+          <span class="t">🔧 現場排科調整(排班系統)</span>
+          <span class="btns">
+            <button onclick="window.open(SCHEDULER_ADJUST_URL,'_blank')" title="改用新視窗開啟">開新視窗 ↗</button>
+            <button onclick="closeSchedulerAdjust()">✕ 關閉</button>
+          </span>
+        </div>
+        <iframe src="${SCHEDULER_ADJUST_URL}" title="現場排科調整"></iframe>
+      </div>
+    </div>`;
+}
+function closeSchedulerAdjust() { document.getElementById('modal-root').innerHTML = ''; }
 
 // ====== 病人摘要 modal ======
 function openPatientInfo(caseId) {

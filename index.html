@@ -422,6 +422,8 @@
 
   /* 狀態標籤 */
   .cs-status { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 999px; font-size: 19px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .cs-copy { cursor: pointer; padding: 2px 8px; border-radius: 6px; font-size: 18px; opacity: 0.72; user-select: none; }
+  .cs-copy:hover { background: #eef2f6; opacity: 1; }
   .cs-status:hover { transform: translateY(-1px); }
   .cs-status.st-active { background: #e6f7ec; color: #0a7a3b; }
   .cs-status.st-wait { background: #fff4dc; color: #a06800; }
@@ -2429,6 +2431,7 @@ function cardHTML(c) {
         <span class="cs-progress-pill ${progressInfo.cls}">${escapeHtml(progressInfo.text)}</span>
         ${stateBadge(c.state)}
         ${isNotCase(c) ? '<span class="badge badge-notcase" title="調查後不符合事件定義,撤銷通報">❎ 不成案</span>' : ''}
+        <span class="cs-copy" onclick="event.stopPropagation();copyCaseText('${c.id}')" title="複製此案件內容">📋</span>
       </div>
 
       <div class="cs-flags">${affiliationBadge(c)}${tierBadge(c.tier)}${flagBadges(c.flags)}</div>
@@ -2774,6 +2777,35 @@ async function copyAnnounceScript(caseId) {
     ta.select();
     try { document.execCommand('copy'); toast('話術已複製'); }
     catch (e2) { toast('複製失敗,請手動選取'); }
+    document.body.removeChild(ta);
+  }
+}
+
+// 複製單一案件完整內容(標題+補充+詳情+最新進度),給 LINE 分享/交接用
+async function copyCaseText(caseId) {
+  const c = state.cases.find(x => x.id === caseId);
+  if (!c) return;
+  const cat = CATS.find(x => x.id === c.cat);
+  let txt = `【${cat ? cat.label : c.cat}${c.subType ? '/' + c.subType : ''}】${c.title}\n`;
+  if (c.meta) txt += `補充:${c.meta}\n`;
+  const stateTxt = c.state === 'closed' ? '已結案' : c.state === 'pending_approval' ? '待批准' : (c.waitingFor || '處理中');
+  txt += `狀態:${stateTxt} · 建立:${c.created || ''}${c.owner ? ' · ' + c.owner : ''}\n`;
+  if (c.detail) txt += `────────────────\n${c.detail}\n`;
+  const prog = (c.progress || []).slice(-3);
+  if (prog.length) {
+    txt += `────────────────\n最新進度:\n`;
+    prog.forEach(p => { txt += `[${p.time}] ${p.who}:${p.text}\n`; });
+  }
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast('已複製此案件內容 📋');
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); toast('已複製此案件內容 📋'); }
+    catch (e2) { toast('複製失敗,請改用交班摘要'); }
     document.body.removeChild(ta);
   }
 }

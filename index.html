@@ -1223,6 +1223,18 @@ function userHasSelection_() {
     return !!(sel && sel.rangeCount > 0 && !sel.isCollapsed && String(sel).trim().length > 0);
   } catch (e) { return false; }
 }
+
+// 輸入法(注音/倉頡)組字中偵測:組字期間絕不重繪,否則組字會被強制中斷
+let _imeComposing = false;
+document.addEventListener('compositionstart', () => { _imeComposing = true; }, true);
+document.addEventListener('compositionend', () => { _imeComposing = false; }, true);
+
+// 使用者游標在輸入框/文字框,或輸入法組字中 → 暫停輪詢重繪,避免打到一半被洗掉
+function isUserTyping_() {
+  if (_imeComposing) return true;
+  const el = document.activeElement;
+  return !!(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'));
+}
 window.addEventListener('scroll', updateScrollTime, { passive: true });
 window.addEventListener('touchmove', updateScrollTime, { passive: true });
 window.addEventListener('touchstart', updateScrollTime, { passive: true });
@@ -1250,7 +1262,7 @@ async function refreshAll(showToast) {
 
   // 若使用者最近 3 秒內正在滑動「或正在選取文字(要複製)」,延後重渲染(避免畫面跳動/選取被洗掉)
   // 但仍取資料,讓下次渲染時是新資料
-  const userActivelyScrolling = isPolling && ((Date.now() - lastUserScrollTime < 3000) || userHasSelection_());
+  const userActivelyScrolling = isPolling && ((Date.now() - lastUserScrollTime < 3000) || userHasSelection_() || isUserTyping_());
 
   // 記錄滑動位置(渲染後恢復)
   const scrollY = window.scrollY;
@@ -1259,8 +1271,8 @@ async function refreshAll(showToast) {
   if (!r || !r.ok) {
     state.cases = state.cases || [];
     state.notes = state.notes || [];
-    // 輪詢失敗 = 沒拿到新資料,重繪只會白白洗掉畫面(和正在選取的文字),所以只有「手動按重新整理」才重繪
-    if (!isPolling && !userHasSelection_()) renderAll();
+    // 輪詢失敗 = 沒拿到新資料,重繪只會白白洗掉畫面(和正在選取/輸入的文字),所以只有「手動按重新整理」才重繪
+    if (!isPolling && !userHasSelection_() && !isUserTyping_()) renderAll();
     if (r && r.error) toast('資料載入失敗:' + r.error);
     return;
   }
@@ -1588,19 +1600,44 @@ function matchPaneFilter(c, kw) {
     .some(s => String(s).toLowerCase().indexOf(k) >= 0);
 }
 
+// 打字搜尋:只重繪「結果區」,輸入框本身絕不重建(重建會打斷注音組字、搶走游標)
+// 另加 250ms 防抖 + 組字中延後,打中文才順
+let _paneFilterTimer = null;
 function setPaneFilter(catId, kw) {
   state.paneFilter[catId] = kw;
-  renderPanes();
+  // 清除鈕顯示/隱藏(直接切 style,不重建 DOM)
+  const clr = document.getElementById('pane-filter-clear-' + catId);
+  if (clr) clr.style.display = kw ? '' : 'none';
+  clearTimeout(_paneFilterTimer);
+  const run = () => {
+    if (_imeComposing) { _paneFilterTimer = setTimeout(run, 150); return; }  // 注音組字中,等選完字再篩
+    const box = document.getElementById('pane-results-' + catId);
+    if (box) box.innerHTML = paneResultsHTML(catId);
+    else renderPanes();   // 保險:容器不在(理論上不會)才整頁重繪
+  };
+  _paneFilterTimer = setTimeout(run, 250);
+}
+
+// × 清除:直接清輸入框的值(不重建它),結果區立即復原
+function clearPaneFilter(catId) {
+  state.paneFilter[catId] = '';
+  clearTimeout(_paneFilterTimer);
+  const inp = document.getElementById('pane-filter-input-' + catId);
+  if (inp) { inp.value = ''; inp.focus(); }
+  const clr = document.getElementById('pane-filter-clear-' + catId);
+  if (clr) clr.style.display = 'none';
+  const box = document.getElementById('pane-results-' + catId);
+  if (box) box.innerHTML = paneResultsHTML(catId); else renderPanes();
 }
 
 function paneFilterBox(catId, placeholder) {
   const kw = state.paneFilter[catId] || '';
   return `<div class="pane-filter">
-    <input type="text" class="pane-filter-input"
+    <input type="text" class="pane-filter-input" id="pane-filter-input-${catId}"
            placeholder="${placeholder}"
            value="${escapeHtml(kw)}"
            oninput="setPaneFilter('${catId}', this.value)">
-    ${kw ? `<button class="pane-filter-clear" onclick="setPaneFilter('${catId}', '')" title="清除">×</button>` : ''}
+    <button class="pane-filter-clear" id="pane-filter-clear-${catId}" style="display:${kw ? '' : 'none'};" onclick="clearPaneFilter('${catId}')" title="清除">×</button>
   </div>`;
 }
 
@@ -2196,6 +2233,21 @@ function setRepairSubFilter(key) {
 }
 
 function renderPane(catId) {
+  // 外殼:搜尋框 + 新增鈕(+請假的調科鈕)。打字搜尋時這塊不重建,注音才不會被打斷
+  const catLabel = CATS.find(x=>x.id===catId).label;
+  let html = paneFilterBox(catId, `🔍 在「${catLabel}」內搜尋 — 例:推床、ER101、監視器`);
+  if (!isReadOnly()) {
+    html += `<button class="add-btn add-btn-top" onclick="openAddCase('${catId}')">+ 新增${catLabel}案件</button>`;
+  }
+  if (catId === 'leave' && !isReadOnly()) {
+    html += `<button class="adjust-btn" onclick="openSchedulerAdjust()">🔧 緊急調科(請假缺口 → 現場排科調整)</button>`;
+  }
+  html += `<div id="pane-results-${catId}">${paneResultsHTML(catId)}</div>`;
+  document.getElementById('pane-'+catId).innerHTML = html;
+}
+
+// 分頁「結果區」:chips + 篩選橫條 + 待批准/未結案/已封緘。打字時只重繪這一塊
+function paneResultsHTML(catId) {
   const allItems = state.cases.filter(x => x.cat === catId && String(x.deleted || '') !== 'yes');
   const kw = state.paneFilter[catId] || '';
   const items = kw ? allItems.filter(c => matchPaneFilter(c, kw)) : allItems;
@@ -2227,18 +2279,7 @@ function renderPane(catId) {
   // 篩選結果跨狀態(搜尋時把已封緘的也顯示出來,方便追查物件歷史)
   const isFiltering = !!kw;
 
-  const catLabel = CATS.find(x=>x.id===catId).label;
-  let html = paneFilterBox(catId, `🔍 在「${catLabel}」內搜尋 — 例:推床、ER101、監視器`);
-
-  // 新增按鈕移到頂部(在搜尋框下方,案件清單上方)
-  if (!isReadOnly()) {
-    html += `<button class="add-btn add-btn-top" onclick="openAddCase('${catId}')">+ 新增${catLabel}案件</button>`;
-  }
-
-  // 請假分頁專屬:緊急調科入口(嵌入排班系統的現場排科調整頁)
-  if (catId === 'leave' && !isReadOnly()) {
-    html += `<button class="adjust-btn" onclick="openSchedulerAdjust()">🔧 緊急調科(請假缺口 → 現場排科調整)</button>`;
-  }
+  let html = '';
 
   // 請修分頁專屬:subType chip 篩選列
   if (catId === 'repair' && !kw) {
@@ -2288,7 +2329,7 @@ function renderPane(catId) {
       }
     }
   }
-  document.getElementById('pane-'+catId).innerHTML = html;
+  return html;
 }
 
 function toggleClosedHidden(catId) {
@@ -4090,10 +4131,18 @@ function renderNotesPane() {
   `;
 }
 
-function onNotesKw(v) { state.notesFilter.kw = v; renderNotesPane();
-  // 保留游標
-  const el = document.getElementById('notes-kw');
-  if (el) { el.focus(); el.setSelectionRange(v.length, v.length); }
+let _notesKwTimer = null;
+function onNotesKw(v) {
+  state.notesFilter.kw = v;
+  clearTimeout(_notesKwTimer);
+  const run = () => {
+    if (_imeComposing) { _notesKwTimer = setTimeout(run, 150); return; }  // 注音組字中不重繪
+    renderNotesPane();
+    // 保留游標
+    const el = document.getElementById('notes-kw');
+    if (el) { el.focus(); const L = (state.notesFilter.kw || '').length; el.setSelectionRange(L, L); }
+  };
+  _notesKwTimer = setTimeout(run, 300);
 }
 function setNotesCat(c) { state.notesFilter.cat = c; renderNotesPane(); }
 
@@ -6119,8 +6168,17 @@ function showModal(title, contentHTML, onSubmit) {
       </div>
     </div>`;
   document.getElementById('modal-submit').onclick = async () => {
-    const ok = await onSubmit();
-    if (ok) closeModal();
+    const btn = document.getElementById('modal-submit');
+    if (!btn || btn.disabled) return;          // 防連點:等待期間再按不會重複送出
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = '⏳ 送出中…';
+    let ok = false;
+    try { ok = await onSubmit(); } catch (e) { ok = false; }
+    if (ok) { closeModal(); }
+    else {
+      const b = document.getElementById('modal-submit');  // 失敗才解鎖,內容保留讓使用者修正
+      if (b) { b.disabled = false; b.textContent = orig; }
+    }
   };
 }
 function closeModal() { document.getElementById('modal-root').innerHTML = ''; }

@@ -1086,6 +1086,7 @@
 // ====== 設定 ======
 const API_URL = 'https://script.google.com/macros/s/AKfycbyUfhENJGp6lcITyAikwXqjwyWqKy5IiPORk7DmwHuo1-K7HB_mQlW_QcmnVbhkCx0T/exec';
 const POLL_MS = 60000; // 60 秒輪詢(從 30 秒拉長,降低系統負擔。leader 看到資料晚 30 秒不影響工作)
+const FULL_SYNC_MS = 10 * 60000; // 每 10 分鐘拿一次完整資料(補上直接在試算表手動修改的內容)
 
 // ====== State ======
 const state = {
@@ -1203,6 +1204,7 @@ function doLogout(silent) {
   // 登出時一併清掉本機的案件快取:護理站共用電腦登出後,不應還留著案件資料
   localStorage.removeItem('handover_cache');
   state.cases = []; state.notes = [];
+  state.syncTime = null; state.dataVer = null; state.lastFullAt = 0;
   lastDataFingerprint = '';
   if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
   document.getElementById('login-view').style.display = 'flex';
@@ -1302,7 +1304,16 @@ async function refreshAll(showToast) {
   // 記錄滑動位置(渲染後恢復)
   const scrollY = window.scrollY;
 
-  const r = await api('listAll');
+  // 平常只問「有沒有變」、有變也只拿變動的案件;
+  // 手動按重新整理、第一次載入、或距上次完整載入超過 10 分鐘,才拿完整資料
+  const wantFull = !!showToast || !state.syncTime || (Date.now() - (state.lastFullAt || 0) > FULL_SYNC_MS);
+  const r = await api('listAll', wantFull ? {} : { v: state.dataVer, since: state.syncTime });
+  if (r && r.ok && r.unchanged) {
+    state.lastRefreshAt = Date.now();
+    if (r.serverTime) state.syncTime = r.serverTime;
+    if (window._debugPerf) console.log('[perf] 後端回報資料沒變');
+    return;
+  }
   if (!r || !r.ok) {
     state.cases = state.cases || [];
     state.notes = state.notes || [];
@@ -1311,8 +1322,20 @@ async function refreshAll(showToast) {
     if (r && r.error) toast('資料載入失敗:' + r.error);
     return;
   }
-  state.cases = r.cases || [];
+  if (r.mode === 'delta') {
+    // 增量:只替換有變動的案件;被歸檔的移除
+    const byId = new Map(state.cases.map(c => [c.id, c]));
+    (r.cases || []).forEach(c => {
+      if (String(c.deleted || '') === 'yes') byId.delete(c.id); else byId.set(c.id, c);
+    });
+    state.cases = Array.from(byId.values());
+  } else {
+    state.cases = r.cases || [];
+    state.lastFullAt = Date.now();
+  }
   state.notes = r.notes || [];
+  if (r.v) state.dataVer = r.v;
+  if (r.serverTime) state.syncTime = r.serverTime;
   state.lastRefreshAt = Date.now();
   try { localStorage.setItem('handover_cache', JSON.stringify({ cases: state.cases, notes: state.notes, t: Date.now() })); } catch (e) {}
 
@@ -2216,6 +2239,13 @@ async function runMonthlyAnalysis() {
   target.innerHTML = html;
 }
 
+// 封緘指紋狀態(後端比對封緘當下的內容):完整 / 被改過 / 舊案件尚未建立指紋(不顯示)
+function sealBadgeHTML(c) {
+  if (c.sealOk === true) return ' · <span title="內容與封緘當下一致,未被修改">🔒 封緘完整</span>';
+  if (c.sealOk === false) return ' · <span style="color:var(--red-text);font-weight:700;" title="封緘後內容被直接修改過,請護理長確認">⚠ 封緘後內容被改動</span>';
+  return '';
+}
+
 // 隱藏門檻:封緘超過 N 天的不顯示在分類分頁
 const HIDE_CLOSED_AFTER_DAYS = 3;
 
@@ -2530,7 +2560,7 @@ function cardHTML(c) {
         ${attachmentsHTML(c)}
         ${progressHTML(c.progress, c.id, c.state === 'closed')}
         ${c.state === 'closed'
-          ? `<div class="card-meta" style="margin-top:10px;">已封緘 ${escapeHtml(c.closedAt)} · 批准:${escapeHtml(c.closedBy)}</div>`
+          ? `<div class="card-meta" style="margin-top:10px;">已封緘 ${escapeHtml(c.closedAt)} · 批准:${escapeHtml(c.closedBy)}${sealBadgeHTML(c)}</div>`
           : actionsHTML(c)}
         <div class="card-meta" style="margin-top:8px;">取得 ${escapeHtml(String(c.created).split(' ')[0])} · ${escapeHtml(c.meta || '')}</div>
       </div>

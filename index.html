@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>急診 Leader 交班系統</title>
+<!-- 可安裝成 App(手機桌面 / 電腦) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f1820">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="交班系統">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root {
     /* 主色:深藍綠(專業、未來感不浮誇) */
@@ -319,6 +327,15 @@
   .sidebar-foot button:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.3); }
   /* 手機版專用登出 icon,桌機隱藏 */
   .sidebar-logout-mobile { display: none; }
+  /* 安裝成 App */
+  .sidebar-foot button.install-side { border-color: rgba(0,166,160,0.5); color: var(--accent); }
+  .install-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 14px; font-size: 18px; color: var(--accent-d); }
+  .install-bar[hidden] { display: none; }
+  .install-bar .install-actions { display: flex; gap: 8px; }
+  .install-bar button { padding: 6px 14px; font-size: 17px; }
+  .install-steps { margin: 10px 0 0; padding-left: 22px; line-height: 1.9; font-size: 19px; color: var(--text2); }
 
   /* 主內容區 */
   .main { flex: 1; min-width: 0; padding: 20px 28px 100px; max-width: 1200px; margin: 0 auto; width: 100%; }
@@ -1029,6 +1046,7 @@
       <div class="sidebar-foot">
         <div class="who"><span id="me-name">—</span><span id="me-role" class="role-tag"></span></div>
         <div id="now" style="margin-top:4px;font-variant-numeric:tabular-nums;">—</div>
+        <button class="install-side" id="install-side" onclick="doInstall()" hidden>📲 安裝成 App</button>
         <button onclick="doLogout()">登出</button>
       </div>
       <button class="sidebar-logout-mobile" onclick="doLogout()" title="登出" aria-label="登出">⏻</button>
@@ -1041,6 +1059,13 @@
         <span class="time" id="now-top">—</span>
       </div>
 
+      <div class="install-bar" id="install-bar" hidden>
+        <span>📲 把交班系統裝到桌面,下次點圖示就能開</span>
+        <span class="install-actions">
+          <button class="primary" onclick="doInstall()">安裝</button>
+          <button onclick="hideInstallBar()" aria-label="不要再顯示">×</button>
+        </span>
+      </div>
       <div class="summary" id="summary"></div>
       <div id="pending-bar"></div>
       <div id="panes"></div>
@@ -1175,7 +1200,11 @@ function doLogout(silent) {
   state.user = null;
   localStorage.removeItem('handover_token');
   localStorage.removeItem('handover_user');
-  if (state.pollTimer) clearInterval(state.pollTimer);
+  // 登出時一併清掉本機的案件快取:護理站共用電腦登出後,不應還留著案件資料
+  localStorage.removeItem('handover_cache');
+  state.cases = []; state.notes = [];
+  lastDataFingerprint = '';
+  if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
   document.getElementById('login-view').style.display = 'flex';
   document.getElementById('app-view').style.display = 'none';
 }
@@ -1202,11 +1231,17 @@ async function showApp() {
   // 先用上次快取即時顯示,避免登入後對著空白等後端
   try {
     const c = JSON.parse(localStorage.getItem('handover_cache') || 'null');
-    if (c && c.cases) { state.cases = c.cases; state.notes = c.notes || []; renderAll(); }
+    if (c && c.cases) {
+      state.cases = c.cases; state.notes = c.notes || []; renderAll();
+      // 記下快取的指紋:後端回來的資料若跟快取一樣,就不必再重畫一次
+      lastDataFingerprint = dataFingerprint(state.cases, state.notes);
+    }
     else { const pn = document.getElementById('panes'); if (pn) pn.innerHTML = '<div style="padding:48px;text-align:center;color:#888;">載入中…</div>'; }
   } catch (e) {}
+  updateInstallUI_();
   await refreshAll();
-  startPolling();
+  if (!state.token) return;      // 背景確認時發現登入已過期 → 已回到登入畫面
+  if (!document.hidden) startPolling();
   startClock();
 }
 
@@ -1278,6 +1313,7 @@ async function refreshAll(showToast) {
   }
   state.cases = r.cases || [];
   state.notes = r.notes || [];
+  state.lastRefreshAt = Date.now();
   try { localStorage.setItem('handover_cache', JSON.stringify({ cases: state.cases, notes: state.notes, t: Date.now() })); } catch (e) {}
 
   // 記錄目前資料量,F12 可看(觀察是否累積太多舊資料)
@@ -5360,10 +5396,15 @@ function renderSettingsPane() {
     <div class="card" style="margin-top:12px;">
       <div class="card-title">系統資訊</div>
       <div style="margin-top:12px;font-size: 20px;color:var(--text2);line-height:1.8;">
-        <div>版本:Handover Leader v1.0</div>
+        <div>版本:Handover Leader v1.1</div>
         <div>API:已連線</div>
-        <div>輪詢間隔:30 秒</div>
+        <div>輪詢間隔:${POLL_MS / 1000} 秒(畫面在背景時暫停)</div>
       </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="card-title">安裝成 App</div>
+      <div style="margin-top:8px;font-size:19px;color:var(--text2);">${installCardHTML()}</div>
     </div>
 
     <div class="card" style="margin-top:12px;">
@@ -6455,13 +6496,80 @@ function toast(msg) {
   setTimeout(() => el.classList.remove('show'), 2000);
 }
 
+// ====== 安裝成 App(PWA)======
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+let _installEvt = null;
+function isStandalone_() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+}
+function isIOS_() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function installBarHidden_() { try { return localStorage.getItem('handover_install_hide') === '1'; } catch (e) { return false; } }
+function updateInstallUI_() {
+  const can = !!_installEvt && !isStandalone_();
+  const side = document.getElementById('install-side');
+  if (side) side.hidden = !can;
+  const bar = document.getElementById('install-bar');
+  if (bar) bar.hidden = !(can && !installBarHidden_());
+}
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();             // 改由我們的「安裝」按鈕觸發
+  _installEvt = e;
+  updateInstallUI_();
+});
+window.addEventListener('appinstalled', () => {
+  _installEvt = null;
+  updateInstallUI_();
+  toast('已安裝,之後可從桌面圖示開啟');
+});
+async function doInstall() {
+  if (!_installEvt) {
+    if (isIOS_()) alert('iPhone / iPad 請用 Safari:\n點下方「分享」按鈕 → 選「加入主畫面」');
+    else alert('請用 Chrome 或 Edge 開啟:\n點網址列右側的「安裝」圖示,或選單 → 「安裝應用程式」');
+    return;
+  }
+  _installEvt.prompt();
+  try { await _installEvt.userChoice; } catch (e) {}
+  _installEvt = null;
+  updateInstallUI_();
+}
+function hideInstallBar() {
+  try { localStorage.setItem('handover_install_hide', '1'); } catch (e) {}
+  updateInstallUI_();
+}
+function installCardHTML() {
+  if (isStandalone_()) return '✅ 目前就是以 App 開啟中。';
+  if (_installEvt) return '裝到桌面後,下次點圖示就能直接開,不用再找網址。' +
+    '<div><button class="primary" style="margin-top:12px;" onclick="doInstall()">📲 安裝成 App</button></div>';
+  if (isIOS_()) return 'iPhone / iPad 請用 <b>Safari</b> 開啟本頁,然後:' +
+    '<ol class="install-steps"><li>點畫面下方的「分享」按鈕(方框加向上箭頭)</li><li>往下滑,選「加入主畫面」</li><li>按右上角「新增」</li></ol>';
+  return '請用 Chrome 或 Edge 開啟本頁:' +
+    '<ol class="install-steps"><li>點網址列右側的「安裝」圖示</li><li>或右上角選單 → 「安裝應用程式」/「加到主畫面」</li></ol>' +
+    '<div style="margin-top:6px;font-size:17px;">已經裝過的話,桌面或應用程式清單裡會有「交班系統」圖示。</div>';
+}
+
+// ====== 背景時暫停輪詢(省流量、省電,也減輕後端負擔)======
+document.addEventListener('visibilitychange', () => {
+  if (!state.token) return;
+  if (document.hidden) {
+    if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+  } else {
+    // 回到畫面:離上次更新超過一個輪詢週期就馬上更新一次,再恢復輪詢
+    if (Date.now() - (state.lastRefreshAt || 0) > POLL_MS) refreshAll();
+    startPolling();
+  }
+});
+
 // ====== 初始化 ======
 window.addEventListener('DOMContentLoaded', async () => {
   if (tryRestoreSession()) {
-    // 驗證 session 是否還有效
-    const r = await api('listAll');
-    if (r && r.ok) { showApp(); return; }
-    doLogout(true);
+    // 直接進入:先顯示上次的資料,後端在背景更新。
+    // 登入若已過期,api() 收到 AUTH 會自動登出回登入畫面,不必先等一趟後端確認。
+    showApp();
+    return;
   }
   document.getElementById('login-password').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
